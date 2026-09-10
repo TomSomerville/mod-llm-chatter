@@ -480,9 +480,9 @@ def _is_model_error(exc):
 
 def _probe_anthropic(config, model):
     """Make a minimal Anthropic call; returns text or raises."""
-    import anthropic
-    client = anthropic.Anthropic(
-        api_key=config.get('LLMChatter.Anthropic.ApiKey', ''),
+    from chatter_llm import make_anthropic_client
+    client = make_anthropic_client(
+        config.get('LLMChatter.Anthropic.ApiKey', ''),
     )
     resp = client.messages.create(
         model=model,

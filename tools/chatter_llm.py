@@ -45,6 +45,22 @@ def _build_chat_messages(sys_msg, user_content):
     return messages
 
 
+def make_anthropic_client(key):
+    """Build an Anthropic client from an API key or a Claude
+    subscription OAuth token (sk-ant-oat..., from `claude
+    setup-token`), which must be sent as a Bearer auth_token."""
+    import anthropic
+    if key and key.startswith('sk-ant-oat'):
+        return anthropic.Anthropic(
+            api_key=None,
+            auth_token=key,
+            default_headers={
+                'anthropic-beta': 'oauth-2025-04-20',
+            },
+        )
+    return anthropic.Anthropic(api_key=key)
+
+
 def _build_anthropic_request_kwargs(
     model, max_tokens, temperature, sys_msg, user_msg
 ):
@@ -324,12 +340,11 @@ def get_llm_client(config):
                 kwargs['default_headers'] = headers
             _main_client = openai.OpenAI(**kwargs)
         else:
-            import anthropic
-            _main_client = anthropic.Anthropic(
-                api_key=config.get(
+            _main_client = make_anthropic_client(
+                config.get(
                     'LLMChatter.Anthropic.ApiKey',
                     '',
-                ),
+                )
             )
 
         _main_client_provider = provider
@@ -567,8 +582,8 @@ def _get_quick_analyze_client(config):
             )
             if not api_key:
                 return None, main_provider
-            _quick_analyze_client = anthropic.Anthropic(
-                api_key=api_key
+            _quick_analyze_client = make_anthropic_client(
+                api_key
             )
         else:
             return None, main_provider

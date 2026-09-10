@@ -1354,7 +1354,8 @@ def main():
         )
         if not api_key:
             sys.exit(1)
-        client = anthropic.Anthropic(api_key=api_key)
+        from chatter_llm import make_anthropic_client
+        client = make_anthropic_client(api_key)
 
     # Get poll interval
     poll_interval = int(config.get(

@@ -1175,7 +1175,7 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
             ->_proxChatterPlayerSayScanRadius);
     std::vector<ProximityCandidate> candidates;
     CollectNearbyBots(player, radius, candidates);
-    CollectNearbyNPCs(player, radius, candidates);
+    // NPCs excluded: user wants playerbot-only LLM speech.
     DeduplicateCandidates(candidates);
 
     Group* playerGroup = player->GetGroup();
@@ -1224,7 +1224,7 @@ void HandleProximityPlayerSayNewScene(
             ->_proxChatterPlayerSayScanRadius);
     std::vector<ProximityCandidate> candidates;
     CollectNearbyBots(player, radius, candidates);
-    CollectNearbyNPCs(player, radius, candidates);
+    // NPCs excluded: user wants playerbot-only LLM speech.
     DeduplicateCandidates(candidates);
 
     // Filter out cooled-down candidates BEFORE
@@ -1261,6 +1261,24 @@ void HandleProximityPlayerSayNewScene(
     // chatter owns grouped-bot-only conversations.
     if (nonParty.empty())
         return;
+
+    // Prefer playerbots over NPCs when any are in range,
+    // so mobs don't answer a player addressing a bot.
+    bool hasBots = std::any_of(
+        nonParty.begin(), nonParty.end(),
+        [](ProximityCandidate const& c)
+        {
+            return !c.isNPC;
+        });
+    if (hasBots)
+        nonParty.erase(
+            std::remove_if(
+                nonParty.begin(), nonParty.end(),
+                [](ProximityCandidate const& c)
+                {
+                    return c.isNPC;
+                }),
+            nonParty.end());
 
     std::shuffle(
         candidates.begin(), candidates.end(),
@@ -1324,7 +1342,7 @@ void MaybeQueueProximityScene(Player* player)
             ->_proxChatterScanRadius);
     std::vector<ProximityCandidate> candidates;
     CollectNearbyBots(player, radius, candidates);
-    CollectNearbyNPCs(player, radius, candidates);
+    // NPCs excluded: user wants playerbot-only LLM speech.
     DeduplicateCandidates(candidates);
 
     if (candidates.empty())
@@ -1580,7 +1598,13 @@ void HandleProximityPlayerSay(
     WorldObject* target =
         ResolveParticipantObject(player, responder);
     if (!target)
+    {
+        // Scene responder despawned or out of range: fall back to
+        // a fresh responder instead of silently dropping the say.
+        HandleProximityPlayerSayNewScene(
+            player, safeMsg);
         return;
+    }
 
     Map* map = player->GetMap();
     char const* rawMapName =

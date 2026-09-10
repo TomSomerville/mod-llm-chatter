@@ -481,9 +481,9 @@ def _generate_bot_tone(
                 kwargs['default_headers'] = headers
             client = _openai.OpenAI(**kwargs)
         else:
-            import anthropic as _anthropic
-            client = _anthropic.Anthropic(
-                api_key=config.get(
+            from chatter_llm import make_anthropic_client
+            client = make_anthropic_client(
+                config.get(
                     'LLMChatter.Anthropic.ApiKey', ''
                 )
             )
@@ -710,9 +710,9 @@ def _generate_bot_backstory(
                 kwargs['default_headers'] = headers
             client = _openai.OpenAI(**kwargs)
         else:
-            import anthropic as _anthropic
-            client = _anthropic.Anthropic(
-                api_key=config.get(
+            from chatter_llm import make_anthropic_client
+            client = make_anthropic_client(
+                config.get(
                     'LLMChatter.Anthropic.ApiKey', ''
                 )
             )

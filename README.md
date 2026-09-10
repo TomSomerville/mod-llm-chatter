@@ -1,4 +1,4 @@
-# mod-llm-chatter (TomSomerville fork)
+# mod-llm-chatter (AI modified fork)
 
 AI-powered conversations for [AzerothCore](https://www.azerothcore.org/) playerbots — bots that talk back, remember you, and feel alive.
 

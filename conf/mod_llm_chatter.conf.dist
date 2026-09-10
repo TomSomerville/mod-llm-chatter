@@ -407,7 +407,7 @@ LLMChatter.OpenRouter.Title =
 #       itself, not the host.
 #       Default: http://localhost:11434
 #
-LLMChatter.Ollama.BaseUrl = http://host.docker.internal:11434
+LLMChatter.Ollama.BaseUrl = http://localhost:11434
 
 #
 #   LLMChatter.Ollama.ContextSize
@@ -416,7 +416,7 @@ LLMChatter.Ollama.BaseUrl = http://host.docker.internal:11434
 #       Increase if you get truncated responses.
 #       Default: 4096
 #
-LLMChatter.Ollama.ContextSize = 4096
+LLMChatter.Ollama.ContextSize = 8192
 
 #
 #   LLMChatter.Ollama.DisableThinking
@@ -451,7 +451,7 @@ LLMChatter.Database.Port = 3306
 #       Database username
 #       Default: acore
 #
-LLMChatter.Database.User = root
+LLMChatter.Database.User = acore
 
 #
 #   LLMChatter.Database.Password
@@ -561,7 +561,7 @@ LLMChatter.GeneralChat.PlayerReplyEnable = 1
 #       start/end, PvP kills, score milestones).
 #       Default: 1
 #
-LLMChatter.BGChatter.Enable = 1
+LLMChatter.BGChatter.Enable = 0
 
 #
 #   LLMChatter.RaidChatter.Enable
@@ -647,7 +647,7 @@ LLMChatter.ConversationChance = 40
 #       to plain ambient chatter.
 #       Default: 5
 #
-LLMChatter.AmbientNpcGossipChance = 5
+LLMChatter.AmbientNpcGossipChance = 0
 
 #
 #   LLMChatter.AmbientBotGossipChance
@@ -659,7 +659,7 @@ LLMChatter.AmbientNpcGossipChance = 5
 #       plain ambient chatter.
 #       Default: 5
 #
-LLMChatter.AmbientBotGossipChance = 5
+LLMChatter.AmbientBotGossipChance = 0
 
 #
 #   LLMChatter.AmbientGossipTargetCooldownSeconds
@@ -681,7 +681,7 @@ LLMChatter.AmbientGossipTargetCooldownSeconds = 1800
 #       and weather ambient have optional per-event overrides below.
 #       Default: 25
 #
-LLMChatter.EventReactionChance = 25
+LLMChatter.EventReactionChance = 10
 
 #
 #   LLMChatter.EventConversationChance
@@ -865,7 +865,7 @@ LLMChatter.ProximityChatter.InstanceChance = 100
 #       again as the lead speaker.
 #       Default: 60
 #
-LLMChatter.ProximityChatter.EntityCooldown = 60
+LLMChatter.ProximityChatter.EntityCooldown = 1
 
 #
 #   LLMChatter.ProximityChatter.ZoneFatigueThreshold
@@ -889,7 +889,7 @@ LLMChatter.ProximityChatter.ZoneFatigueDecay = 20
 #       instead of a single line.
 #       Default: 40
 #
-LLMChatter.ProximityChatter.ConversationChance = 40
+LLMChatter.ProximityChatter.ConversationChance = 70
 
 #
 #   LLMChatter.ProximityChatter.PlayerAddressChance
@@ -897,7 +897,7 @@ LLMChatter.ProximityChatter.ConversationChance = 40
 #       framed as if it might address the player.
 #       Default: 30
 #
-LLMChatter.ProximityChatter.PlayerAddressChance = 30
+LLMChatter.ProximityChatter.PlayerAddressChance = 60
 
 #
 #   LLMChatter.ProximityChatter.MaxConversationLines
@@ -920,7 +920,7 @@ LLMChatter.ProximityChatter.ConversationLineDelay = 2
 #       player /say reply.
 #       Default: 30
 #
-LLMChatter.ProximityChatter.ReplyWindowSeconds = 30
+LLMChatter.ProximityChatter.ReplyWindowSeconds = 45
 
 #
 #   LLMChatter.ProximityChatter.ReplyMaxTurns
@@ -928,7 +928,7 @@ LLMChatter.ProximityChatter.ReplyWindowSeconds = 30
 #       proximity scene before replies stop.
 #       Default: 5
 #
-LLMChatter.ProximityChatter.ReplyMaxTurns = 5
+LLMChatter.ProximityChatter.ReplyMaxTurns = 25
 
 #
 #   LLMChatter.ProximityChatter.MaxTokensPerLine
@@ -1633,7 +1633,7 @@ LLMChatter.GroupChatter.GeneralRelayMaxGroups = 1
 #       (ending with ?) use QuestionChance instead.
 #       Default: 40
 #
-LLMChatter.GeneralChat.ReactionChance = 40
+LLMChatter.GeneralChat.ReactionChance = 100
 
 #
 #   LLMChatter.GeneralChat.QuestionChance
@@ -1644,7 +1644,7 @@ LLMChatter.GeneralChat.ReactionChance = 40
 #       statements and remarks also trigger at ReactionChance.
 #       Default: 80
 #
-LLMChatter.GeneralChat.QuestionChance = 80
+LLMChatter.GeneralChat.QuestionChance = 100
 
 #
 #   LLMChatter.GeneralChat.Cooldown
@@ -1653,7 +1653,7 @@ LLMChatter.GeneralChat.QuestionChance = 80
 #       responding to every single message in a busy zone.
 #       Default: 30
 #
-LLMChatter.GeneralChat.Cooldown = 30
+LLMChatter.GeneralChat.Cooldown = 10
 
 #
 #   LLMChatter.GeneralChat.ReactDelay
@@ -1788,7 +1788,7 @@ LLMChatter.GuildChatter.Enable = 1
 #       produces a statement or conversation on each check.
 #       Default: 15
 #
-LLMChatter.GuildChatter.Chance = 15
+LLMChatter.GuildChatter.Chance = 0
 
 #
 #   LLMChatter.GuildChatter.Cooldown
@@ -2259,7 +2259,7 @@ LLMChatter.ConversationMaxTokens = 700
 #       LLM temperature (0.0 = focused, 1.0 = creative)
 #       Default: 0.8
 #
-LLMChatter.Temperature = 0.8
+LLMChatter.Temperature = 0.6
 
 #
 #   LLMChatter.MaxMessageLength

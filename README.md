@@ -6,6 +6,7 @@ AI-powered conversations for [AzerothCore](https://www.azerothcore.org/) playerb
 
 ## What this fork changes
 
+- **Anthropic/Claude only** — all other LLM providers (OpenAI, Google, OpenRouter, Ollama) are stripped out for a simpler, smaller module.
 - **Playerbot-only speech** — NPCs never answer players; only playerbots respond and chatter.
 - **No dropped messages** — if a conversation's designated responder despawned or walked out of range, a fresh nearby bot answers instead of the message vanishing.
 - **Claude subscription support** — authenticate with a Claude Pro/Max OAuth token from `claude setup-token` (uses your plan's included Agent SDK credits) instead of a paid API key. Paste the `sk-ant-oat...` token where the API key goes; it's detected automatically.
@@ -15,7 +16,7 @@ AI-powered conversations for [AzerothCore](https://www.azerothcore.org/) playerb
 - [AzerothCore, Playerbot branch](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot) (the standard repo will not compile with playerbots)
 - [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots)
 - Python 3.10+
-- An LLM: local [Ollama](https://ollama.com), or an Anthropic / OpenAI / Google / OpenRouter API key, or a Claude Pro/Max subscription (this fork)
+- Claude access: an Anthropic API key, or a Claude Pro/Max subscription (via `claude setup-token`)
 
 ## Install
 
@@ -44,7 +45,6 @@ python3 -m venv ~/llm-bridge-venv
 |---|---|
 | Claude subscription (this fork) | `Provider = anthropic`, `Model = claude-haiku-4-5-20251001`, `ApiKey = <sk-ant-oat token from "claude setup-token">` |
 | Anthropic API key | `Provider = anthropic`, `ApiKey = sk-ant-api...` |
-| Local / free (Ollama) | `Provider = ollama`, `Model = gemma3:4b` (or any non-thinking model), `Ollama.BaseUrl = http://localhost:11434` |
 
 **2. Set the database credentials** in the same file (`LLMChatter.Database.*`) to match your AzerothCore characters DB.
 

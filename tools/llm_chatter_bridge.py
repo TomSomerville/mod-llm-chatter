@@ -3,8 +3,8 @@
 LLM Chatter Bridge - Generates dynamic bot
 conversations via LLM
 
-Supports Anthropic (Claude), OpenAI (GPT), Google
-Gemini, OpenRouter, and Ollama models.
+Anthropic-only fork: supports Anthropic (Claude)
+models exclusively.
 
 This script:
 1. Polls the database for pending chatter requests
@@ -26,20 +26,14 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import anthropic
-import openai
 
 import chatter_ambient
 
 from chatter_constants import (
     DEFAULT_ANTHROPIC_MODEL,
-    DEFAULT_GOOGLE_MODEL,
-    DEFAULT_OPENAI_MODEL,
-    DEFAULT_OPENROUTER_MODEL,
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST,
     MSG_TYPE_LOOT, MSG_TYPE_QUEST_REWARD,
     MSG_TYPE_TRADE, MSG_TYPE_SPELL,
-    GOOGLE_OPENAI_BASE_URL,
-    OPENROUTER_BASE_URL,
 )
 from chatter_db import (
     get_group_location,
@@ -97,10 +91,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Suppress noisy HTTP request logging from OpenAI/httpx
-# (fires on every Ollama API call)
+# Suppress noisy HTTP request logging from httpx
 logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("openai").setLevel(logging.WARNING)
 
 
 # =============================================================================
@@ -1269,93 +1261,29 @@ def main():
     )
     snapshot_dir = _prepare_snapshot_dir(snapshot_dir)
 
-    # Get provider and initialize appropriate client
+    # Get provider and initialize the Anthropic client
     provider = config.get(
         'LLMChatter.Provider', 'anthropic'
     ).lower()
-    default_model = DEFAULT_ANTHROPIC_MODEL
-    if provider == 'openai':
-        default_model = DEFAULT_OPENAI_MODEL
-    elif provider == 'google':
-        default_model = DEFAULT_GOOGLE_MODEL
-    elif provider == 'openrouter':
-        default_model = DEFAULT_OPENROUTER_MODEL
+    if provider != 'anthropic':
+        logger.error(
+            "LLMChatter.Provider=%r is not supported: "
+            "this fork is Anthropic-only. Set "
+            "LLMChatter.Provider = \"anthropic\".",
+            provider,
+        )
+        sys.exit(1)
     model = config.get(
-        'LLMChatter.Model', default_model
+        'LLMChatter.Model', DEFAULT_ANTHROPIC_MODEL
     )
 
-    if provider == 'ollama':
-        # Ollama runs locally - no API key needed
-        # Uses OpenAI-compatible API endpoint
-        base_url = config.get(
-            'LLMChatter.Ollama.BaseUrl',
-            'http://localhost:11434'
-        )
-        # Ollama's OpenAI-compatible endpoint is
-        # at /v1
-        ollama_api_url = (
-            f"{base_url.rstrip('/')}/v1"
-        )
-        client = openai.OpenAI(
-            base_url=ollama_api_url,
-            api_key="ollama"
-        )
-    elif provider == 'openai':
-        api_key = config.get(
-            'LLMChatter.OpenAI.ApiKey', ''
-        )
-        if not api_key:
-            sys.exit(1)
-        client = openai.OpenAI(api_key=api_key)
-    elif provider == 'google':
-        api_key = config.get(
-            'LLMChatter.Google.ApiKey', ''
-        )
-        if not api_key:
-            sys.exit(1)
-        client = openai.OpenAI(
-            api_key=api_key,
-            base_url=config.get(
-                'LLMChatter.Google.BaseUrl',
-                GOOGLE_OPENAI_BASE_URL,
-            ),
-        )
-    elif provider == 'openrouter':
-        api_key = config.get(
-            'LLMChatter.OpenRouter.ApiKey', ''
-        )
-        if not api_key:
-            sys.exit(1)
-        headers = {}
-        referer = config.get(
-            'LLMChatter.OpenRouter.HttpReferer', ''
-        ).strip()
-        title = config.get(
-            'LLMChatter.OpenRouter.Title', ''
-        ).strip()
-        if referer:
-            headers['HTTP-Referer'] = referer
-        if title:
-            headers['X-OpenRouter-Title'] = title
-        kwargs = {
-            'api_key': api_key,
-            'base_url': config.get(
-                'LLMChatter.OpenRouter.BaseUrl',
-                OPENROUTER_BASE_URL,
-            ),
-        }
-        if headers:
-            kwargs['default_headers'] = headers
-        client = openai.OpenAI(**kwargs)
-    else:
-        # Anthropic (default)
-        api_key = config.get(
-            'LLMChatter.Anthropic.ApiKey', ''
-        )
-        if not api_key:
-            sys.exit(1)
-        from chatter_llm import make_anthropic_client
-        client = make_anthropic_client(api_key)
+    api_key = config.get(
+        'LLMChatter.Anthropic.ApiKey', ''
+    )
+    if not api_key:
+        sys.exit(1)
+    from chatter_llm import make_anthropic_client
+    client = make_anthropic_client(api_key)
 
     # Get poll interval
     poll_interval = int(config.get(
@@ -1413,26 +1341,6 @@ def main():
     logger.info(
         f"Model: {model}"
     )
-    if provider == 'ollama':
-        base_url = config.get(
-            'LLMChatter.Ollama.BaseUrl',
-            'http://localhost:11434'
-        )
-        context_size = config.get(
-            'LLMChatter.Ollama.ContextSize', 2048
-        )
-        disable_thinking = (
-            config.get(
-                'LLMChatter.Ollama.DisableThinking',
-                '1'
-            ) == '1'
-        )
-        logger.info(f"Ollama URL: {base_url}")
-        logger.info(f"Context size: {context_size}")
-        logger.info(
-            f"Thinking mode: "
-            f"{'disabled (/no_think)' if disable_thinking else 'enabled'}"
-        )
     logger.info(f"Poll interval: {poll_interval}s")
     logger.info(
         f"Max concurrent: {max_concurrent}"
@@ -1479,14 +1387,6 @@ def main():
     logger.info(
         f"  ChatterMode: "
         f"{config.get('LLMChatter.ChatterMode', 'normal')}"
-    )
-    logger.info(
-        f"  Ollama.BaseUrl: "
-        f"{config.get('LLMChatter.Ollama.BaseUrl', 'http://localhost:11434')}"
-        f"  ContextSize: "
-        f"{config.get('LLMChatter.Ollama.ContextSize', 2048)}"
-        f"  DisableThinking: "
-        f"{config.get('LLMChatter.Ollama.DisableThinking', 1)}"
     )
     logger.info("-" * 60)
     logger.info("Feature toggles:")

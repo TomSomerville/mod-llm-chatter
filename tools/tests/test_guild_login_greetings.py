@@ -22,20 +22,15 @@ def _ensure_module(name: str) -> types.ModuleType:
 
 
 def _install_non_strict_stubs() -> None:
-    for module_name in ("anthropic", "openai"):
+    for module_name in ("anthropic",):
         try:
             importlib.import_module(module_name)
         except ModuleNotFoundError:
             module = _ensure_module(module_name)
-            class_name = (
-                "Anthropic"
-                if module_name == "anthropic"
-                else "OpenAI"
-            )
             setattr(
                 module,
-                class_name,
-                type(class_name, (), {}),
+                "Anthropic",
+                type("Anthropic", (), {}),
             )
 
     try:

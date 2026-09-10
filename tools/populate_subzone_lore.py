@@ -12,11 +12,6 @@ Usage:
         --provider anthropic \
         --api-key sk-ant-xxx \
         --model claude-haiku-4-5-20251001
-
-    python populate_subzone_lore.py \
-        --provider openai \
-        --api-key sk-xxx \
-        --model gpt-4o-mini
 """
 
 import argparse
@@ -92,27 +87,14 @@ def call_anthropic(client, model, prompt):
     return response.content[0].text.strip()
 
 
-def call_openai(client, model, prompt):
-    """Call OpenAI API."""
-    response = client.chat.completions.create(
-        model=model,
-        max_tokens=150,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-    )
-    return response.choices[0].message.content.strip()
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Populate subzone lore descriptions"
     )
     parser.add_argument(
-        "--provider", required=True,
-        choices=["anthropic", "openai"],
-        help="LLM provider"
+        "--provider", default="anthropic",
+        choices=["anthropic"],
+        help="LLM provider (Anthropic-only fork)"
     )
     parser.add_argument(
         "--api-key", required=True,
@@ -215,18 +197,11 @@ def main():
         return
 
     # Initialize client
-    call_fn = None
-    if args.provider == "anthropic":
-        import anthropic
-        client = anthropic.Anthropic(
-            api_key=args.api_key)
-        call_fn = lambda p: call_anthropic(
-            client, args.model, p)
-    else:
-        from openai import OpenAI
-        client = OpenAI(api_key=args.api_key)
-        call_fn = lambda p: call_openai(
-            client, args.model, p)
+    import anthropic
+    client = anthropic.Anthropic(
+        api_key=args.api_key)
+    call_fn = lambda p: call_anthropic(
+        client, args.model, p)
 
     # Process
     done = 0

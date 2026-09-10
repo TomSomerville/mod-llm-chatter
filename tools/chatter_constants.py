@@ -2823,17 +2823,10 @@ RP_LENGTH_HINTS = [
 # =============================================================================
 # LLM DEFAULT MODELS
 # =============================================================================
-# Default model for each provider when none is
-# configured. Used by quick_llm_analyze() auto-
-# selection and as config fallbacks.
+# Default model when none is configured. Used by
+# quick_llm_analyze() auto-selection and as a
+# config fallback. This fork is Anthropic-only.
 DEFAULT_ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
-DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
-DEFAULT_GOOGLE_MODEL = 'gemini-3.1-flash-lite'
-DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini'
-GOOGLE_OPENAI_BASE_URL = (
-    'https://generativelanguage.googleapis.com/v1beta/openai/'
-)
-OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
 # =============================================================================
 # EVENT DESCRIPTIONS

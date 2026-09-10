@@ -15,13 +15,12 @@ def _ensure_module(name):
     return module
 
 
-for dependency in ('anthropic', 'openai'):
+for dependency in ('anthropic',):
     try:
         importlib.import_module(dependency)
     except ModuleNotFoundError:
         module = _ensure_module(dependency)
-        attribute = 'Anthropic' if dependency == 'anthropic' else 'OpenAI'
-        setattr(module, attribute, type(attribute, (), {}))
+        setattr(module, 'Anthropic', type('Anthropic', (), {}))
 
 try:
     importlib.import_module('mysql.connector')

@@ -29,8 +29,6 @@ from chatter_mode import (
     resolve_player_personality,
 )
 from chatter_constants import PERSONALITY_TRAITS
-from chatter_constants import GOOGLE_OPENAI_BASE_URL
-from chatter_constants import OPENROUTER_BASE_URL
 from chatter_db import mark_event
 
 logger = logging.getLogger(__name__)
@@ -424,69 +422,12 @@ def _generate_bot_tone(
     # _call_llm_for_memory in chatter_memory.py)
     client = None
     try:
-        provider = config.get(
-            'LLMChatter.Provider', 'anthropic'
-        ).lower()
-        if provider == 'ollama':
-            import openai as _openai
-            base = config.get(
-                'LLMChatter.Ollama.BaseUrl',
-                'http://localhost:11434',
+        from chatter_llm import make_anthropic_client
+        client = make_anthropic_client(
+            config.get(
+                'LLMChatter.Anthropic.ApiKey', ''
             )
-            client = _openai.OpenAI(
-                base_url=f"{base.rstrip('/')}/v1",
-                api_key='ollama',
-            )
-        elif provider == 'openai':
-            import openai as _openai
-            client = _openai.OpenAI(
-                api_key=config.get(
-                    'LLMChatter.OpenAI.ApiKey', ''
-                )
-            )
-        elif provider == 'google':
-            import openai as _openai
-            client = _openai.OpenAI(
-                api_key=config.get(
-                    'LLMChatter.Google.ApiKey', ''
-                ),
-                base_url=config.get(
-                    'LLMChatter.Google.BaseUrl',
-                    GOOGLE_OPENAI_BASE_URL,
-                ),
-            )
-        elif provider == 'openrouter':
-            import openai as _openai
-            headers = {}
-            referer = config.get(
-                'LLMChatter.OpenRouter.HttpReferer', ''
-            ).strip()
-            title = config.get(
-                'LLMChatter.OpenRouter.Title', ''
-            ).strip()
-            if referer:
-                headers['HTTP-Referer'] = referer
-            if title:
-                headers['X-OpenRouter-Title'] = title
-            kwargs = {
-                'api_key': config.get(
-                    'LLMChatter.OpenRouter.ApiKey', ''
-                ),
-                'base_url': config.get(
-                    'LLMChatter.OpenRouter.BaseUrl',
-                    OPENROUTER_BASE_URL,
-                ),
-            }
-            if headers:
-                kwargs['default_headers'] = headers
-            client = _openai.OpenAI(**kwargs)
-        else:
-            from chatter_llm import make_anthropic_client
-            client = make_anthropic_client(
-                config.get(
-                    'LLMChatter.Anthropic.ApiKey', ''
-                )
-            )
+        )
     except Exception:
         pass
 
@@ -653,69 +594,12 @@ def _generate_bot_backstory(
     # Build LLM client inline
     client = None
     try:
-        provider = config.get(
-            'LLMChatter.Provider', 'anthropic'
-        ).lower()
-        if provider == 'ollama':
-            import openai as _openai
-            base = config.get(
-                'LLMChatter.Ollama.BaseUrl',
-                'http://localhost:11434',
+        from chatter_llm import make_anthropic_client
+        client = make_anthropic_client(
+            config.get(
+                'LLMChatter.Anthropic.ApiKey', ''
             )
-            client = _openai.OpenAI(
-                base_url=f"{base.rstrip('/')}/v1",
-                api_key='ollama',
-            )
-        elif provider == 'openai':
-            import openai as _openai
-            client = _openai.OpenAI(
-                api_key=config.get(
-                    'LLMChatter.OpenAI.ApiKey', ''
-                )
-            )
-        elif provider == 'google':
-            import openai as _openai
-            client = _openai.OpenAI(
-                api_key=config.get(
-                    'LLMChatter.Google.ApiKey', ''
-                ),
-                base_url=config.get(
-                    'LLMChatter.Google.BaseUrl',
-                    GOOGLE_OPENAI_BASE_URL,
-                ),
-            )
-        elif provider == 'openrouter':
-            import openai as _openai
-            headers = {}
-            referer = config.get(
-                'LLMChatter.OpenRouter.HttpReferer', ''
-            ).strip()
-            title = config.get(
-                'LLMChatter.OpenRouter.Title', ''
-            ).strip()
-            if referer:
-                headers['HTTP-Referer'] = referer
-            if title:
-                headers['X-OpenRouter-Title'] = title
-            kwargs = {
-                'api_key': config.get(
-                    'LLMChatter.OpenRouter.ApiKey', ''
-                ),
-                'base_url': config.get(
-                    'LLMChatter.OpenRouter.BaseUrl',
-                    OPENROUTER_BASE_URL,
-                ),
-            }
-            if headers:
-                kwargs['default_headers'] = headers
-            client = _openai.OpenAI(**kwargs)
-        else:
-            from chatter_llm import make_anthropic_client
-            client = make_anthropic_client(
-                config.get(
-                    'LLMChatter.Anthropic.ApiKey', ''
-                )
-            )
+        )
     except Exception:
         pass
 

@@ -9,7 +9,7 @@ Usage:
     python screenshot_agent.py --config path/to/mod_llm_chatter.conf
 
 Requirements (host-side):
-    pip install mss Pillow anthropic openai mysql-connector-python pywin32
+    pip install mss Pillow anthropic mysql-connector-python pywin32
 """
 
 import argparse
@@ -28,11 +28,6 @@ import mysql.connector
 from PIL import Image
 
 log = logging.getLogger("screenshot_agent")
-
-GOOGLE_OPENAI_BASE_URL = (
-    'https://generativelanguage.googleapis.com/v1beta/openai/'
-)
-OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
 # -----------------------------------------------------------
 # Vision prompt — Stage 1 (pure extraction, no personality)
@@ -137,10 +132,10 @@ def load_screenshot_config(raw: dict) -> dict:
             'LLMChatter.Screenshot.Chance', '30')),
         'vision_provider': raw.get(
             'LLMChatter.Screenshot.VisionProvider',
-            'openai').lower(),
+            'anthropic').lower(),
         'vision_model': raw.get(
             'LLMChatter.Screenshot.VisionModel',
-            'gpt-4o-mini'),
+            'claude-haiku-4-5-20251001'),
         'bound_account_id': int(raw.get(
             'LLMChatter.Screenshot.BoundAccountId', '0')),
         'max_width_px': int(raw.get(
@@ -149,22 +144,6 @@ def load_screenshot_config(raw: dict) -> dict:
             'LLMChatter.Screenshot.JpegQuality', '75')),
         'anthropic_api_key': raw.get(
             'LLMChatter.Anthropic.ApiKey', ''),
-        'openai_api_key': raw.get(
-            'LLMChatter.OpenAI.ApiKey', ''),
-        'google_api_key': raw.get(
-            'LLMChatter.Google.ApiKey', ''),
-        'google_base_url': raw.get(
-            'LLMChatter.Google.BaseUrl',
-            GOOGLE_OPENAI_BASE_URL),
-        'openrouter_api_key': raw.get(
-            'LLMChatter.OpenRouter.ApiKey', ''),
-        'openrouter_base_url': raw.get(
-            'LLMChatter.OpenRouter.BaseUrl',
-            OPENROUTER_BASE_URL),
-        'openrouter_http_referer': raw.get(
-            'LLMChatter.OpenRouter.HttpReferer', ''),
-        'openrouter_title': raw.get(
-            'LLMChatter.OpenRouter.Title', ''),
         # Host-side override: Database.Host is typically a
         # Docker-internal hostname (e.g. ac-database) which
         # the Windows host can't resolve. Screenshot.DBHost
@@ -300,59 +279,18 @@ def _call_anthropic(
     return resp.content[0].text.strip()
 
 
-def _call_openai(
-    jpeg_b64: str, client, model: str,
-) -> 'str | None':
-    resp = client.chat.completions.create(
-        model=model,
-        max_tokens=300,
-        messages=[{
-            "role": "system",
-            "content": VISION_SYSTEM,
-        }, {
-            "role": "user",
-            "content": [{
-                "type": "image_url",
-                "image_url": {
-                    "url": (
-                        "data:image/jpeg;base64,"
-                        + jpeg_b64
-                    ),
-                },
-            }, {
-                "type": "text",
-                "text": "What do you see in this scene?",
-            }],
-        }],
-    )
-    content = resp.choices[0].message.content
-    if not content:
-        finish_reason = getattr(
-            resp.choices[0], 'finish_reason', None)
-        log.warning(
-            "Vision API returned no text content: "
-            "finish_reason=%s",
-            finish_reason,
-        )
-        return None
-    return content.strip()
-
-
 def analyze_screenshot(
     jpeg_bytes: bytes,
     client,
     model: str,
-    provider: str = 'openai',
+    provider: str = 'anthropic',
 ) -> 'dict | None':
     """Send screenshot to vision LLM, return structured
     description or None if uninteresting / error."""
     b64 = base64.standard_b64encode(jpeg_bytes).decode()
 
     try:
-        if provider == 'anthropic':
-            raw = _call_anthropic(b64, client, model)
-        else:
-            raw = _call_openai(b64, client, model)
+        raw = _call_anthropic(b64, client, model)
     except Exception as e:
         log.error("Vision API call failed: %s", e)
         return None
@@ -703,39 +641,10 @@ def _do_capture_cycle(
 
 
 def _create_vision_client(config: dict):
-    """Create the vision API client based on provider."""
-    provider = config['vision_provider']
-    if provider == 'anthropic':
-        import anthropic
-        return anthropic.Anthropic(
-            api_key=config['anthropic_api_key'])
-    if provider == 'google':
-        import openai
-        return openai.OpenAI(
-            api_key=config['google_api_key'],
-            base_url=config['google_base_url'])
-    if provider == 'openrouter':
-        import openai
-        headers = {}
-        if config['openrouter_http_referer']:
-            headers['HTTP-Referer'] = (
-                config['openrouter_http_referer']
-            )
-        if config['openrouter_title']:
-            headers['X-OpenRouter-Title'] = (
-                config['openrouter_title']
-            )
-        kwargs = {
-            'api_key': config['openrouter_api_key'],
-            'base_url': config['openrouter_base_url'],
-        }
-        if headers:
-            kwargs['default_headers'] = headers
-        return openai.OpenAI(**kwargs)
-    else:
-        import openai
-        return openai.OpenAI(
-            api_key=config['openai_api_key'])
+    """Create the Anthropic vision API client."""
+    from chatter_llm import make_anthropic_client
+    return make_anthropic_client(
+        config['anthropic_api_key'])
 
 
 def run_agent(config: dict) -> None:
@@ -792,26 +701,16 @@ def main():
         sys.exit(1)
 
     provider = config['vision_provider']
-    if provider == 'anthropic':
-        if not config['anthropic_api_key']:
-            log.error(
-                "LLMChatter.Anthropic.ApiKey not set")
-            sys.exit(1)
-    elif provider == 'google':
-        if not config['google_api_key']:
-            log.error(
-                "LLMChatter.Google.ApiKey not set")
-            sys.exit(1)
-    elif provider == 'openrouter':
-        if not config['openrouter_api_key']:
-            log.error(
-                "LLMChatter.OpenRouter.ApiKey not set")
-            sys.exit(1)
-    else:
-        if not config['openai_api_key']:
-            log.error(
-                "LLMChatter.OpenAI.ApiKey not set")
-            sys.exit(1)
+    if provider != 'anthropic':
+        log.error(
+            "LLMChatter.Screenshot.VisionProvider=%r is "
+            "not supported: this fork is Anthropic-only.",
+            provider)
+        sys.exit(1)
+    if not config['anthropic_api_key']:
+        log.error(
+            "LLMChatter.Anthropic.ApiKey not set")
+        sys.exit(1)
 
     run_agent(config)
 

@@ -14,7 +14,6 @@ from unittest.mock import DEFAULT, patch
 def _install_non_strict_stubs() -> None:
     for module_name, class_name in (
         ('anthropic', 'Anthropic'),
-        ('openai', 'OpenAI'),
     ):
         try:
             __import__(module_name)

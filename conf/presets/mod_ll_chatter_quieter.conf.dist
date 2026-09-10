@@ -26,42 +26,19 @@
 #
 # RECOMMENDED MODELS:
 #
-#   This module has been tested extensively with Claude Haiku 4.5 (Anthropic)
-#   and GPT-4o-mini (OpenAI) with excellent results. Gemini Flash models
-#   and OpenRouter-hosted OpenAI-compatible models can also work well
-#   when you prefer those APIs. These models are recommended for their
-#   speed and low cost, ideal for high-volume
-#   LLM calls (ambient chatter, group reactions,
+#   This fork is Anthropic-only. It has been tested extensively with
+#   Claude Haiku 4.5, which is recommended for its speed and low cost,
+#   ideal for high-volume LLM calls (ambient chatter, group reactions,
 #   battleground events, pre-cache, state callouts).
 #
 #   The module runs best with models that deliver sub-5 second response times.
-#   Any provider that meets this latency target will work well, including:
-#   - Anthropic / OpenAI / Google / OpenRouter cloud APIs
-#   - Ollama cloud-hosted models
-#   - Local inference with very fast hardware (high-end GPU + small model)
-#
-#   LOCAL INFERENCE WARNING:
-#   Running models locally on consumer hardware typically produces 15-70 second
-#   latency per call. During high-activity scenarios (battlegrounds, large groups),
-#   LLM calls queue up faster than they can be processed, causing:
-#   - Stale reactions arriving long after the triggering event
-#   - Queue buildup during combat (calls process serially)
-#   - Smaller models (< 4B params) may produce malformed JSON output
-#
-#   Minimum recommended local model: qwen3:4b-instruct or equivalent (4B+ params,
-#   instruction-tuned, with reliable JSON output). Models below 4B parameters
-#   frequently fail to produce valid structured responses.
 #
 # SUPPORTED PROVIDERS:
 #   - anthropic : Claude models (Haiku 4.5 is recommended for speed and low cost) - cloud, requires API key
-#   - openai    : GPT models (GPT-4o-mini is recommended for speed and low cost) - cloud, requires API key
-#   - google    : Gemini models (Gemini 3.1 Flash-Lite / 2.5 Flash) - cloud, requires API key
-#   - openrouter: OpenRouter model routing - cloud, requires API key
-#   - ollama    : Local running on very fast hardware or cloud models
 #
 # SETUP INSTRUCTIONS:
 # 1. Copy this file to your server's config directory as mod_llm_chatter.conf
-# 2. Choose your provider and configure settings below
+# 2. Configure your Anthropic key and settings below
 # 3. Run the SQL migration to create the tables
 # 4. Start the Python bridge: python tools/llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 # 5. Set LLMChatter.Enable = 1 and restart the worldserver
@@ -204,50 +181,19 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 # LLM PROVIDER SETTINGS [BRIDGE]
 ###############################################################################
 #
-# To switch providers, just change LLMChatter.Provider and LLMChatter.Model.
-# Only configure the settings for your chosen provider.
+# QUICK SETUP:
 #
-# QUICK SETUP EXAMPLES:
-#
-#   Cloud (Anthropic Claude Haiku - recommended for quality):
+#   Cloud (Anthropic Claude Haiku - recommended):
 #     LLMChatter.Provider = anthropic
 #     LLMChatter.Model = claude-haiku-4-5-20251001
 #     LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
-#
-#   Cloud (OpenAI GPT-4o-mini - fast and cheap):
-#     LLMChatter.Provider = openai
-#     LLMChatter.Model = gpt-4o-mini
-#     LLMChatter.OpenAI.ApiKey = sk-xxxxx
-#
-#   Cloud (Google Gemini Flash):
-#     LLMChatter.Provider = google
-#     LLMChatter.Model = gemini-3.1-flash-lite
-#     LLMChatter.Google.ApiKey = AIza-xxxxx
-#
-#   Cloud (OpenRouter, OpenAI-compatible):
-#     LLMChatter.Provider = openrouter
-#     LLMChatter.Model = openai/gpt-4o-mini
-#     LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
-#
-#   Ollama cloud (fast, pay-per-use via Ollama):
-#     LLMChatter.Provider = ollama
-#     LLMChatter.Model = deepseek-v3.1:671b-cloud
-#     (requires Ollama account with cloud access)
-#
-#   Ollama local (NOT RECOMMENDED unless you have fast inference hardware):
-#     LLMChatter.Provider = ollama
-#     LLMChatter.Model = qwen3:4b-instruct
-#     (install Ollama, run: ollama pull qwen3:4b-instruct)
-#     Running local models on consumer hardware or typical local network setups
-#     will result in severely degraded performance. Only use local Ollama if you
-#     have dedicated GPU inference hardware capable of sub-5s response times.
 #
 ###############################################################################
 
 #
 #   LLMChatter.Provider
-#       Which LLM provider to use:
-#       "anthropic", "openai", "google", "openrouter", or "ollama"
+#       Which LLM provider to use.
+#       Only "anthropic" is supported in this fork.
 #       Default: anthropic
 #
 LLMChatter.Provider = anthropic
@@ -261,23 +207,6 @@ LLMChatter.Provider = anthropic
 #         claude-sonnet-4-5-20250929 (balanced)
 #         claude-opus-4-6 (highest quality)
 #
-#       OpenAI models:
-#         gpt-4o-mini (fast, cheap)
-#         gpt-4o (balanced)
-#
-#       Google Gemini models:
-#         gemini-3.1-flash-lite (fastest, cheap, tested)
-#         gemini-2.5-flash (fast, cheap)
-#         gemini-3-flash-preview (frontier Flash preview)
-#         Alias accepted: gemini-3-flash
-#
-#       OpenRouter models:
-#         openai/gpt-4o-mini
-#         openrouter/auto
-#
-#       Ollama models (from 'ollama list'):
-#         qwen3:4b, qwen3:8b, llama3.2:3b, etc.
-#
 #       Default: claude-haiku-4-5-20251001
 #
 LLMChatter.Model = claude-haiku-4-5-20251001
@@ -288,165 +217,12 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 
 #
 #   LLMChatter.Anthropic.ApiKey
-#       Your Anthropic API key (starts with sk-ant-)
+#       Your Anthropic API key (starts with sk-ant-).
 #       Get one at: https://console.anthropic.com/
+#       Also accepts an sk-ant-oat... OAuth token from a Claude
+#       subscription, generated with `claude setup-token`.
 #
-LLMChatter.Anthropic.ApiKey =
-
-###############################################################################
-# OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
-###############################################################################
-
-#
-#   LLMChatter.OpenAI.ApiKey
-#       Your OpenAI API key (starts with sk-)
-#       Get one at: https://platform.openai.com/api-keys
-#
-LLMChatter.OpenAI.ApiKey =
-
-###############################################################################
-# GOOGLE SETTINGS [BRIDGE] (only needed if Provider = google)
-###############################################################################
-
-#
-#   LLMChatter.Google.ApiKey
-#       Your Google Gemini API key.
-#       Get one at: https://aistudio.google.com/app/apikey
-#
-LLMChatter.Google.ApiKey =
-
-#
-#   LLMChatter.Google.BaseUrl
-#       Google Gemini OpenAI-compatible endpoint.
-#       Only change this if Google changes the compatibility endpoint.
-#
-LLMChatter.Google.BaseUrl = https://generativelanguage.googleapis.com/v1beta/openai/
-
-#
-#   LLMChatter.Google.ReasoningEffort
-#       Gemini reasoning effort for the OpenAI-compatible API.
-#       Used only when Google.ThinkingBudget is empty.
-#       Recommended for Gemini 3.1 Flash-Lite: "minimal".
-#       Set empty or "off" to omit the parameter.
-#
-LLMChatter.Google.ReasoningEffort = minimal
-
-#
-#   LLMChatter.Google.ThinkingBudget
-#       Gemini thinking token budget for the OpenAI-compatible API.
-#       For Gemini 2.5 Flash, set this to 0 to disable thinking for
-#       fast structured chatter and pre-cache calls.
-#       Set empty to use ReasoningEffort instead.
-#
-LLMChatter.Google.ThinkingBudget =
-
-#
-#   LLMChatter.Google.MaxTokensMultiplier
-#       Multiplies per-call output token budgets for Gemini.
-#       This protects short JSON paths such as pre-cache from
-#       returning empty/truncated content.
-#       Default: 2
-#
-LLMChatter.Google.MaxTokensMultiplier = 2
-
-###############################################################################
-# OPENROUTER SETTINGS [BRIDGE] (only needed if Provider = openrouter)
-###############################################################################
-
-#
-#   LLMChatter.OpenRouter.ApiKey
-#       Your OpenRouter API key.
-#       Get one at: https://openrouter.ai/keys
-#
-LLMChatter.OpenRouter.ApiKey =
-
-#
-#   LLMChatter.OpenRouter.BaseUrl
-#       OpenRouter OpenAI-compatible endpoint.
-#       Only change this if OpenRouter changes the compatibility endpoint.
-#
-LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
-
-#
-#   LLMChatter.OpenRouter.ReasoningEffort
-#       Optional OpenRouter reasoning effort. Leave empty to omit the
-#       reasoning object and preserve the model's default behavior.
-#       Set to "none" to explicitly disable reasoning on hybrid models.
-#       Other values are passed through without validation because
-#       supported efforts vary by model (for example: low, high, xhigh).
-#
-LLMChatter.OpenRouter.ReasoningEffort =
-
-#
-#   LLMChatter.OpenRouter.ReasoningExclude
-#       When 1 and ReasoningEffort is set, asks OpenRouter not to return
-#       reasoning text. This does not reduce reasoning-token usage or cost.
-#       Default: 0
-#
-LLMChatter.OpenRouter.ReasoningExclude = 0
-
-#
-#   LLMChatter.OpenRouter.MaxTokensMultiplier
-#       Multiplies per-call output budgets only while reasoning is enabled.
-#       Reasoning tokens share the output budget, so values above 1 can
-#       prevent empty or truncated chatter at higher reasoning efforts.
-#       A value of 5 is a useful starting point for effort "high".
-#       Clamped to the range 1-8. Default: 1
-#
-LLMChatter.OpenRouter.MaxTokensMultiplier = 1
-
-#
-#   LLMChatter.OpenRouter.HttpReferer
-#       Optional site URL for OpenRouter attribution/rankings.
-#       Leave empty if you do not want to send this header.
-#
-LLMChatter.OpenRouter.HttpReferer =
-
-#
-#   LLMChatter.OpenRouter.Title
-#       Optional app/site title for OpenRouter attribution/rankings.
-#       Leave empty if you do not want to send this header.
-#
-LLMChatter.OpenRouter.Title =
-
-###############################################################################
-# OLLAMA SETTINGS [BRIDGE] (only needed if Provider = ollama)
-###############################################################################
-#
-# Ollama runs models locally on your machine - no API key needed!
-# Install: https://ollama.ai
-# Pull a model: ollama pull qwen3:4b
-#
-
-#
-#   LLMChatter.Ollama.BaseUrl
-#       Ollama API endpoint.
-#       NOTE: If the chatter bridge runs in Docker and Ollama runs on the
-#       host machine, use http://host.docker.internal:11434 instead of
-#       localhost. "localhost" inside a container refers to the container
-#       itself, not the host.
-#       Default: http://localhost:11434
-#
-LLMChatter.Ollama.BaseUrl = http://host.docker.internal:11434
-
-#
-#   LLMChatter.Ollama.ContextSize
-#       Context window size (num_ctx). Smaller = faster, less memory.
-#       1024 is good for short chatter messages.
-#       Increase if you get truncated responses.
-#       Default: 4096
-#
-LLMChatter.Ollama.ContextSize = 4096
-
-#
-#   LLMChatter.Ollama.DisableThinking
-#       Some models like Qwen3 have "thinking" mode enabled by default,
-#       which adds internal reasoning before responding. This makes responses
-#       slower and uses more resources - overkill for simple chatter.
-#       Set to 1 to add /no_think to prompts (recommended for Qwen3).
-#       Default: 1
-#
-LLMChatter.Ollama.DisableThinking = 1
+LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 
 ###############################################################################
 # DATABASE SETTINGS [BRIDGE]
@@ -2834,22 +2610,19 @@ LLMChatter.Screenshot.Chance = 40
 #
 #   LLMChatter.Screenshot.VisionProvider
 #       Which AI provider to use for screenshot analysis.
-#       Options: "openai" (recommended, cheaper),
-#       "anthropic", or "google". Requires the
-#       matching API key to be set.
-#       Default: openai
+#       Only "anthropic" is supported in this fork.
+#       Default: anthropic
 #
-LLMChatter.Screenshot.VisionProvider = openai
+LLMChatter.Screenshot.VisionProvider = anthropic
 
 #
 #   LLMChatter.Screenshot.VisionModel
 #       Vision model used for screenshot analysis.
-#       Recommended: gpt-4o-mini (fast, ~$0.0005/image)
-#       Alternatives: claude-haiku-4-5-20251001,
-#       gemini-3.1-flash-lite, gemini-2.5-flash
-#       Default: gpt-4o-mini
+#       Recommended: claude-haiku-4-5-20251001 (fast, cheap,
+#       supports vision).
+#       Default: claude-haiku-4-5-20251001
 #
-LLMChatter.Screenshot.VisionModel = gpt-4o-mini
+LLMChatter.Screenshot.VisionModel = claude-haiku-4-5-20251001
 
 #
 #   LLMChatter.Screenshot.ConversationChance

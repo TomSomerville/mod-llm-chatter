@@ -117,6 +117,82 @@ uint32 ExtractJsonUInt(
     return foundDigit ? static_cast<uint32>(value) : 0;
 }
 
+// Verifies (on a later world tick) that the trade the
+// bot opened actually has items slotted. If the item
+// action ran before the trade session was fully
+// established, retry the playerbots "trade" action
+// once; if the window is still empty after that,
+// cancel the trade and apologize instead of leaving
+// the player staring at an empty window.
+class DelayedTradeSlotCheckEvent : public BasicEvent
+{
+public:
+    DelayedTradeSlotCheckEvent(
+        ObjectGuid botGuid, ObjectGuid playerGuid,
+        std::string param, uint8 attemptsLeft)
+        : _botGuid(botGuid)
+        , _playerGuid(playerGuid)
+        , _param(std::move(param))
+        , _attemptsLeft(attemptsLeft)
+    {
+    }
+
+    bool Execute(uint64 /*time*/,
+                 uint32 /*diff*/) override
+    {
+        Player* bot =
+            ObjectAccessor::FindPlayer(_botGuid);
+        Player* player =
+            ObjectAccessor::FindPlayer(_playerGuid);
+        if (!bot || !bot->IsInWorld()
+            || !bot->GetSession() || !player)
+            return true;
+
+        TradeData* trade = bot->GetTradeData();
+        if (!trade || bot->GetTrader() != player)
+            return true; // window closed/replaced
+
+        for (uint8 slot = 0;
+             slot < TRADE_SLOT_TRADED_COUNT; ++slot)
+            if (trade->GetItem(TradeSlots(slot)))
+                return true; // slotted — all good
+
+        PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+        if (!botAI)
+            return true;
+
+        if (_attemptsLeft > 0)
+        {
+            botAI->DoSpecificAction(
+                "trade",
+                Event("trade", _param, player),
+                true);
+            bot->m_Events.AddEvent(
+                new DelayedTradeSlotCheckEvent(
+                    _botGuid, _playerGuid, _param,
+                    _attemptsLeft - 1),
+                bot->m_Events.CalculateTime(1500));
+            return true;
+        }
+
+        // Still empty: give up cleanly.
+        WorldPacket p;
+        bot->GetSession()
+            ->HandleCancelTradeOpcode(p);
+        bot->Whisper(
+            "Hm, the trade glitched — "
+            "ask me again in a moment.",
+            LANG_UNIVERSAL, player);
+        return true;
+    }
+
+private:
+    ObjectGuid _botGuid;
+    ObjectGuid _playerGuid;
+    std::string _param;
+    uint8 _attemptsLeft;
+};
+
 bool NameEqualsNoCase(
     std::string const& left, std::string const& right)
 {
@@ -308,6 +384,14 @@ void ExecuteLLMChatterTradeAction(
         + std::to_string(stackCount);
     botAI->DoSpecificAction(
         "trade", Event("trade", param, player), true);
+
+    // Verify on a later tick that the item really got
+    // slotted; retry once, then cancel + apologize.
+    bot->m_Events.AddEvent(
+        new DelayedTradeSlotCheckEvent(
+            bot->GetGUID(), player->GetGUID(),
+            param, 1),
+        bot->m_Events.CalculateTime(1500));
 }
 } // namespace
 

@@ -2640,7 +2640,7 @@ def execute_player_msg_conversation(
             msg_text, msg['name']
         )
         text, trade_action = extract_trade_action(
-            text
+            text, player_message=player_message
         )
         text = cleanup_message(
             text, action=msg.get('action')

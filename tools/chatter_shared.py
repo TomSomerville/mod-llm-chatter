@@ -636,8 +636,12 @@ BOT_FACTS_GROUNDING_INSTRUCTIONS = (
     "game data and is authoritative. When the player "
     "asks whether you have, can give, can craft, or "
     "need an item: answer ONLY from the character "
-    "sheet. If an item is not in your inventory, you "
-    "do not have it — say so plainly. For gear/stat "
+    "sheet. You possess everything listed under BOTH "
+    "Inventory (in your bags) and Equipped (currently "
+    "worn or wielded). If an item appears in neither "
+    "list, you do not have it — say so plainly. If it "
+    "appears only under Equipped, you do have it but "
+    "are using it right now. For gear/stat "
     "questions, reason from your class and spec (e.g. "
     "a Priest does not need Strength). Never invent "
     "items, quantities, professions, or abilities "
@@ -647,22 +651,35 @@ BOT_FACTS_GROUNDING_INSTRUCTIONS = (
 )
 
 BOT_FACTS_TRADE_INSTRUCTIONS = (
-    "TRADING: You can physically hand items over. If "
-    "— and only if — the player has clearly CONFIRMED "
-    "they want a specific item that IS listed in your "
-    "inventory, with a quantity stated or clearly "
-    "implied (e.g. 'yes, give me 10', 'I'll take all "
-    "of them'), then append on its own final line, "
-    "after your reply text, exactly: "
-    "<<TRADE|Item Name|count>> "
-    "The item name must exactly match the inventory "
-    "entry on the sheet, and count must not exceed "
-    "the sheet count. NEVER emit the tag on an "
-    "initial inquiry ('do you have any silk?'), an "
-    "offer, or a vague reply — only on explicit "
-    "confirmation. At most one tag per reply. If you "
-    "emit the tag, your reply text should acknowledge "
-    "the handover naturally."
+    "TRADING: You can physically hand over items "
+    "listed under Inventory (not Equipped — those "
+    "are in use). To hand an item over, append on "
+    "its own final line, after your reply text, "
+    "exactly: <<TRADE|Item Name|count>> "
+    "WHEN to emit the tag — look at the player's "
+    "LATEST message only: "
+    "(1) EMIT if it is an acceptance of your offer "
+    "or an explicit request to hand the item over: "
+    "'yes please', 'yes, trade it to me', 'I'll "
+    "take it', 'give me 10', 'hand them over', "
+    "'sure, I'll take one'. "
+    "(2) NEVER emit if it is a QUESTION about "
+    "availability or ability — 'do you have a "
+    "skinning knife?', 'got any silk?', 'can you "
+    "give me water?' — even though the item is on "
+    "your sheet. A message asking WHETHER is never "
+    "a confirmation; answer and offer instead "
+    "('yeah I have one, want it?'). "
+    "COUNT rules: use the number the player stated; "
+    "if they said 'it', 'one', 'some' or gave no "
+    "number but the item is unambiguous from the "
+    "conversation, use 1; if they said 'all' or "
+    "'all of them', use the full sheet count. Never "
+    "exceed the sheet count. "
+    "The item name must exactly match the Inventory "
+    "entry on the sheet. At most one tag per reply. "
+    "If you emit the tag, your reply text should "
+    "acknowledge the handover naturally."
 )
 
 # Matches <<TRADE|Item Name|count>> anywhere in a reply.
@@ -672,13 +689,20 @@ _TRADE_TAG_RE = re.compile(
 )
 
 
-def extract_trade_action(text):
+def extract_trade_action(text, player_message=None):
     """Split a trade tag out of LLM reply text.
 
     Returns (clean_text, action_or_None) where action
     is the normalized 'TRADE|Item Name|count' string
     for the first valid tag found. The tag (and any
     malformed leftovers) are stripped from the text.
+
+    player_message, when provided, is the latest
+    player line the reply answers. Hard guard against
+    premature emission: if that message is an
+    availability QUESTION (ends with '?') and carries
+    no number, any emitted tag is discarded — an
+    inquiry is never a confirmation.
     """
     if not text:
         return text, None
@@ -692,6 +716,22 @@ def extract_trade_action(text):
             count = 0
         if item_name and count > 0:
             action = f"TRADE|{item_name}|{count}"
+    if action and player_message:
+        stripped = player_message.strip()
+        if (
+            stripped.endswith('?')
+            and not any(
+                ch.isdigit() for ch in stripped
+            )
+        ):
+            logging.getLogger(
+                'chatter_shared'
+            ).warning(
+                "trade guard: dropped tag %r "
+                "emitted for inquiry %r",
+                action, stripped,
+            )
+            action = None
     clean = _TRADE_TAG_RE.sub("", text)
     # Remove any malformed/hallucinated tag remnants.
     clean = re.sub(r"<<[^<>]*>>", "", clean)

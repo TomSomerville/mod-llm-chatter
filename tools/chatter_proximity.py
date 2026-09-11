@@ -296,6 +296,7 @@ def _insert_proximity_line(
     sequence: int,
     delay_seconds: int,
     parsed: Dict,
+    player_message: str = None,
 ) -> bool:
     raw_message = parsed.get('message', '')
     message = strip_speaker_prefix(
@@ -304,7 +305,7 @@ def _insert_proximity_line(
     trade_action = None
     if not speaker.get('is_npc'):
         message, trade_action = extract_trade_action(
-            message
+            message, player_message=player_message
         )
     message = cleanup_message(
         message, action=parsed.get('action')
@@ -656,6 +657,7 @@ def _generate_single_line(
         sequence,
         delay_seconds,
         parsed,
+        player_message=extra.get('player_message'),
     )
 
 
@@ -768,6 +770,9 @@ def handle_proximity_conversation(
             index,
             cumulative_delay,
             line,
+            player_message=extra.get(
+                'player_message'
+            ),
         )
         if ok:
             inserted += 1
@@ -1224,6 +1229,7 @@ def handle_proximity_player_say(
         0,
         0,
         parsed,
+        player_message=player_message,
     )
     _mark_event(
         db, event_id,
@@ -1329,6 +1335,9 @@ def handle_proximity_player_conversation(
             index,
             cumulative_delay,
             line,
+            player_message=extra.get(
+                'player_message'
+            ),
         )
         if ok:
             inserted += 1

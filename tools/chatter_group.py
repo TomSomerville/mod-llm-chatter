@@ -1981,7 +1981,7 @@ def process_group_player_msg_event(
             parsed['message'], bot_name
         )
         message, trade_action = extract_trade_action(
-            message
+            message, player_message=player_message
         )
         message = cleanup_message(
             message, action=parsed.get('action')

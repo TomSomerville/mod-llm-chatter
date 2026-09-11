@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_messages` (
     `bot_name` VARCHAR(64) NOT NULL,
     `message` TEXT NOT NULL,
     `emote` VARCHAR(32) DEFAULT NULL,
+    `action` VARCHAR(255) DEFAULT NULL,
     `npc_spawn_id` INT UNSIGNED DEFAULT NULL,
     `player_guid` INT UNSIGNED DEFAULT NULL,
     `group_id` INT UNSIGNED DEFAULT NULL,

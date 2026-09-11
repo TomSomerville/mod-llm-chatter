@@ -646,6 +646,57 @@ BOT_FACTS_GROUNDING_INSTRUCTIONS = (
     "guessing."
 )
 
+BOT_FACTS_TRADE_INSTRUCTIONS = (
+    "TRADING: You can physically hand items over. If "
+    "— and only if — the player has clearly CONFIRMED "
+    "they want a specific item that IS listed in your "
+    "inventory, with a quantity stated or clearly "
+    "implied (e.g. 'yes, give me 10', 'I'll take all "
+    "of them'), then append on its own final line, "
+    "after your reply text, exactly: "
+    "<<TRADE|Item Name|count>> "
+    "The item name must exactly match the inventory "
+    "entry on the sheet, and count must not exceed "
+    "the sheet count. NEVER emit the tag on an "
+    "initial inquiry ('do you have any silk?'), an "
+    "offer, or a vague reply — only on explicit "
+    "confirmation. At most one tag per reply. If you "
+    "emit the tag, your reply text should acknowledge "
+    "the handover naturally."
+)
+
+# Matches <<TRADE|Item Name|count>> anywhere in a reply.
+_TRADE_TAG_RE = re.compile(
+    r"<<\s*TRADE\s*\|\s*([^|<>]{1,100}?)\s*\|\s*"
+    r"(\d{1,4})\s*>>"
+)
+
+
+def extract_trade_action(text):
+    """Split a trade tag out of LLM reply text.
+
+    Returns (clean_text, action_or_None) where action
+    is the normalized 'TRADE|Item Name|count' string
+    for the first valid tag found. The tag (and any
+    malformed leftovers) are stripped from the text.
+    """
+    if not text:
+        return text, None
+    action = None
+    match = _TRADE_TAG_RE.search(text)
+    if match:
+        item_name = match.group(1).strip()
+        try:
+            count = int(match.group(2))
+        except (TypeError, ValueError):
+            count = 0
+        if item_name and count > 0:
+            action = f"TRADE|{item_name}|{count}"
+    clean = _TRADE_TAG_RE.sub("", text)
+    # Remove any malformed/hallucinated tag remnants.
+    clean = re.sub(r"<<[^<>]*>>", "", clean)
+    return clean.strip(), action
+
 
 def get_bot_facts(extra_data, bot_name=''):
     """Return the bot_facts dict for a bot, or None.
@@ -743,25 +794,33 @@ def format_bot_facts_sheet(facts, bot_name=''):
     return "\n".join(lines)
 
 
-def build_bot_facts_lines(extra_data, bot_name=''):
+def build_bot_facts_lines(
+    extra_data, bot_name='', allow_trade=False
+):
     """Character sheet + grounding instructions as
     prompt lines. Empty list when the event carries
-    no bot facts (backward compatible)."""
+    no bot facts (backward compatible). allow_trade
+    adds the <<TRADE|...>> tag contract — only for
+    event types whose delivery path can actually
+    execute a trade (proximity say / party chat)."""
     facts = get_bot_facts(extra_data, bot_name)
     if not facts:
         return []
     sheet = format_bot_facts_sheet(facts, bot_name)
     if not sheet:
         return []
-    return [
+    lines = [
         "",
         sheet,
         BOT_FACTS_GROUNDING_INSTRUCTIONS,
     ]
+    if allow_trade:
+        lines.append(BOT_FACTS_TRADE_INSTRUCTIONS)
+    return lines
 
 
 def build_bot_facts_lines_multi(
-    extra_data, bot_names
+    extra_data, bot_names, allow_trade=False
 ):
     """Character sheets for several bots plus one
     shared grounding-instruction block. Empty list
@@ -783,6 +842,10 @@ def build_bot_facts_lines_multi(
             lines.extend(["", sheet])
     if lines:
         lines.append(BOT_FACTS_GROUNDING_INSTRUCTIONS)
+        if allow_trade:
+            lines.append(
+                BOT_FACTS_TRADE_INSTRUCTIONS
+            )
     return lines
 
 

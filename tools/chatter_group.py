@@ -37,6 +37,7 @@ _spice_count = 2
 
 from chatter_shared import (
     build_bot_facts_lines,
+    extract_trade_action,
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     get_gender_label,
@@ -1918,7 +1919,8 @@ def process_group_player_msg_event(
             travel_context=travel_context,
             bot_facts_context="\n".join(
                 build_bot_facts_lines(
-                    extra_data, bot_name
+                    extra_data, bot_name,
+                    allow_trade=True,
                 )
             ),
         )
@@ -1978,6 +1980,9 @@ def process_group_player_msg_event(
         message = strip_speaker_prefix(
             parsed['message'], bot_name
         )
+        message, trade_action = extract_trade_action(
+            message
+        )
         message = cleanup_message(
             message, action=parsed.get('action')
         )
@@ -2005,6 +2010,12 @@ def process_group_player_msg_event(
             group_id=group_id,
             delivery_policy='responsive',
             delivery_reason='bot_group_player_msg',
+            action=trade_action,
+            player_guid=(
+                int(player_info['guid'])
+                if trade_action and player_info
+                else None
+            ),
         )
 
         _store_chat(

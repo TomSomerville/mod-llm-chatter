@@ -29,6 +29,7 @@ from chatter_shared import (
     strip_conversation_actions,
     build_bot_facts_lines,
     build_bot_facts_lines_multi,
+    extract_trade_action,
 )
 from chatter_mode import (
     build_npc_chat_guidance,
@@ -300,6 +301,11 @@ def _insert_proximity_line(
     message = strip_speaker_prefix(
         raw_message, speaker.get('name', '')
     )
+    trade_action = None
+    if not speaker.get('is_npc'):
+        message, trade_action = extract_trade_action(
+            message
+        )
     message = cleanup_message(
         message, action=parsed.get('action')
     )
@@ -325,6 +331,7 @@ def _insert_proximity_line(
         emote=parsed.get('emote'),
         npc_spawn_id=npc_spawn_id or None,
         player_guid=player_guid or None,
+        action=trade_action,
     )
     return True
 
@@ -439,7 +446,8 @@ def _single_prompt(
             )
     if not speaker.get('is_npc'):
         lines.extend(build_bot_facts_lines(
-            extra, speaker.get('name', '')
+            extra, speaker.get('name', ''),
+            allow_trade=True,
         ))
     lines.append(f"Topic seed: {topic}")
 
@@ -1001,7 +1009,8 @@ def _player_say_single_prompt(
         lines.append(speech_guidance)
     if not speaker.get('is_npc'):
         lines.extend(build_bot_facts_lines(
-            extra, speaker.get('name', '')
+            extra, speaker.get('name', ''),
+            allow_trade=True,
         ))
 
     addressed = extra.get('addressed_name', '')
@@ -1129,6 +1138,7 @@ def _player_say_conversation_prompt(
             for p in participants
             if not p.get('is_npc')
         ],
+        allow_trade=True,
     ))
 
     speaker_names = [

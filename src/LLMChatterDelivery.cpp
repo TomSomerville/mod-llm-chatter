@@ -21,6 +21,19 @@
 #include "ObjectAccessor.h"
 #include "Player.h"
 #include "Playerbots.h"
+#include "Bag.h"
+#include "ChatHelper.h"
+#include "Event.h"
+#include "Item.h"
+#include "ItemTemplate.h"
+#include "Language.h"
+#include "Opcodes.h"
+#include "TradeData.h"
+#include "WorldPacket.h"
+
+#include <cstdlib>
+#include <ctime>
+#include <vector>
 #include "World.h"
 #include "WorldSession.h"
 
@@ -103,6 +116,199 @@ uint32 ExtractJsonUInt(
     }
     return foundDigit ? static_cast<uint32>(value) : 0;
 }
+
+bool NameEqualsNoCase(
+    std::string const& left, std::string const& right)
+{
+    if (left.size() != right.size())
+        return false;
+    for (size_t i = 0; i < left.size(); ++i)
+    {
+        if (std::tolower(
+                static_cast<unsigned char>(left[i]))
+            != std::tolower(
+                static_cast<unsigned char>(right[i])))
+            return false;
+    }
+    return true;
+}
+
+// Execute a conversational trade action attached to a
+// delivered chat line. Format: "TRADE|Item Name|count".
+// Drives the unmodified mod-playerbots trade machinery:
+// the bot opens the trade window (the same
+// CMSG_INITIATE_TRADE route TradeAction itself uses),
+// then the playerbots "trade" chat action slots the
+// item stacks, and the bot's own TradeStatusAction
+// accepts once the player accepts.
+void ExecuteLLMChatterTradeAction(
+    Player* bot,
+    Player* player,
+    std::string const& action,
+    uint64 deliverAtEpoch)
+{
+    if (!bot || !bot->IsInWorld() || !bot->GetSession())
+        return;
+
+    if (action.rfind("TRADE|", 0) != 0)
+        return;
+
+    size_t sep = action.rfind('|');
+    if (sep <= 5 || sep + 1 >= action.size())
+        return;
+
+    std::string itemName = action.substr(6, sep - 6);
+    uint32 requested = static_cast<uint32>(
+        std::strtoul(
+            action.c_str() + sep + 1, nullptr, 10));
+    if (itemName.empty() || !requested)
+        return;
+
+    // Ignore stale actions (older than 120s).
+    if (deliverAtEpoch
+        && time(nullptr)
+            > static_cast<time_t>(deliverAtEpoch) + 120)
+        return;
+
+    PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+    if (!botAI)
+        return;
+
+    if (!player || !player->IsInWorld()
+        || player->GetMapId() != bot->GetMapId())
+        return;
+
+    // Unmodified mod-playerbots (TradeStatusAction)
+    // cancels trades with real players who are neither
+    // the bot's master nor in the bot's group. Tell the
+    // player instead of failing silently.
+    bool allowed = botAI->GetMaster() == player
+        || (bot->GetGroup()
+            && bot->GetGroup()->IsMember(
+                player->GetGUID()));
+    if (!allowed)
+    {
+        bot->Whisper(
+            "Invite me to your group first and "
+            "I'll hand it over.",
+            LANG_UNIVERSAL, player);
+        return;
+    }
+
+    // Trade distance (core TRADE_DISTANCE is 11 yd).
+    if (!bot->IsWithinDistInMap(player, 11.0f, false))
+    {
+        bot->Whisper(
+            "Come closer and I'll trade you.",
+            LANG_UNIVERSAL, player);
+        return;
+    }
+
+    // Either side already trading with someone else?
+    if ((bot->GetTradeData()
+            && bot->GetTrader() != player)
+        || (player->GetTradeData()
+            && player->GetTrader() != bot))
+    {
+        bot->Whisper(
+            "Finish your current trade first.",
+            LANG_UNIVERSAL, player);
+        return;
+    }
+
+    // Locate matching stacks in the same containers the
+    // bot_facts sheet was built from (backpack + bags),
+    // matching on ItemTemplate Name1 like the sheet.
+    std::vector<Item*> stacks;
+    uint32 available = 0;
+    auto consider = [&](Item* item)
+    {
+        if (!item || !item->CanBeTraded())
+            return;
+        ItemTemplate const* proto =
+            item->GetTemplate();
+        if (!proto
+            || !NameEqualsNoCase(
+                proto->Name1, itemName))
+            return;
+        stacks.push_back(item);
+        available += item->GetCount();
+    };
+    for (uint8 slot = INVENTORY_SLOT_ITEM_START;
+         slot < INVENTORY_SLOT_ITEM_END; ++slot)
+        consider(bot->GetItemByPos(
+            INVENTORY_SLOT_BAG_0, slot));
+    for (uint8 bagSlot = INVENTORY_SLOT_BAG_START;
+         bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+    {
+        if (Bag* bag = bot->GetBagByPos(bagSlot))
+            for (uint32 slot = 0;
+                 slot < bag->GetBagSize(); ++slot)
+                consider(bot->GetItemByPos(
+                    bagSlot, slot));
+    }
+
+    if (stacks.empty())
+    {
+        bot->Whisper(
+            "Looks like I don't have that "
+            "any more, sorry.",
+            LANG_UNIVERSAL, player);
+        return;
+    }
+
+    // Cap at what the bot actually has. The playerbots
+    // trade command works in whole stacks, so convert
+    // the requested unit count into the number of
+    // stacks needed to cover it (largest stacks first,
+    // max 6 trade slots).
+    if (requested > available)
+        requested = available;
+    std::sort(
+        stacks.begin(), stacks.end(),
+        [](Item* left, Item* right)
+        {
+            return left->GetCount()
+                > right->GetCount();
+        });
+    uint32 stackCount = 0;
+    uint32 covered = 0;
+    for (Item* item : stacks)
+    {
+        if (covered >= requested
+            || stackCount >= TRADE_SLOT_TRADED_COUNT)
+            break;
+        covered += item->GetCount();
+        ++stackCount;
+    }
+    if (!stackCount)
+        return;
+
+    // Open the trade window from the bot's side — the
+    // exact packet route mod-playerbots' TradeAction
+    // uses when it initiates a trade with its master.
+    if (!bot->GetTradeData())
+    {
+        WorldPacket packet(CMSG_INITIATE_TRADE);
+        packet << player->GetGUID();
+        bot->GetSession()
+            ->HandleInitiateTradeOpcode(packet);
+    }
+
+    if (!bot->GetTradeData()
+        || bot->GetTrader() != player)
+        return;
+
+    // Slot the stacks through the playerbots "trade"
+    // chat action ("trade <itemlink> <count>").
+    ItemTemplate const* proto =
+        stacks.front()->GetTemplate();
+    std::string param =
+        ChatHelper::FormatItem(proto) + " "
+        + std::to_string(stackCount);
+    botAI->DoSpecificAction(
+        "trade", Event("trade", param, player), true);
+}
 } // namespace
 
 void DeliverPendingMessagesImpl()
@@ -135,7 +341,8 @@ void DeliverPendingMessagesImpl()
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
             "m.delivery_reason, m.owner_subsystem, "
-            "e.map_id, e.extra_data "
+            "e.map_id, e.extra_data, m.action, "
+            "UNIX_TIMESTAMP(m.deliver_at) "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -165,7 +372,8 @@ void DeliverPendingMessagesImpl()
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
             "m.delivery_reason, m.owner_subsystem, "
-            "e.map_id, e.extra_data "
+            "e.map_id, e.extra_data, m.action, "
+            "UNIX_TIMESTAMP(m.deliver_at) "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -256,6 +464,14 @@ void DeliverPendingMessagesImpl()
         fields[16].IsNull()
             ? ""
             : fields[16].Get<std::string>();
+    std::string rowAction =
+        fields[17].IsNull()
+            ? ""
+            : fields[17].Get<std::string>();
+    uint64 rowDeliverAt =
+        fields[18].IsNull()
+            ? 0
+            : fields[18].Get<uint64>();
     uint32 eventInstanceId =
         ExtractJsonUInt(
             eventExtraData, "instance_id");
@@ -993,6 +1209,19 @@ void DeliverPendingMessagesImpl()
             botGuid,
             botName,
             message);
+    }
+
+    // Conversational trade: a delivered line may carry
+    // a machine-readable action confirming an item
+    // handover. Only bot-spoken proximity/party lines
+    // ever carry one.
+    if (sent && !rowAction.empty()
+        && (channel == "say" || channel == "party")
+        && bot && bot->IsInWorld())
+    {
+        ExecuteLLMChatterTradeAction(
+            bot, anchorPlayer, rowAction,
+            rowDeliverAt);
     }
 
     if (sent || botUnavailable)

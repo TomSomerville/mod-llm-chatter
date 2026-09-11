@@ -5,6 +5,7 @@ import random
 import re
 from chatter_shared import (
     build_bot_facts_lines_multi,
+    extract_trade_action,
     parse_extra_data,
     get_class_name,
     get_race_name,
@@ -2563,6 +2564,7 @@ def execute_player_msg_conversation(
             build_bot_facts_lines_multi(
                 extra_data,
                 [b['name'] for b in bots],
+                allow_trade=True,
             )
         ),
     )
@@ -2637,6 +2639,9 @@ def execute_player_msg_conversation(
         text = strip_speaker_prefix(
             msg_text, msg['name']
         )
+        text, trade_action = extract_trade_action(
+            text
+        )
         text = cleanup_message(
             text, action=msg.get('action')
         )
@@ -2672,6 +2677,12 @@ def execute_player_msg_conversation(
             group_id=group_id,
             delivery_policy='responsive',
             delivery_reason='bot_group_player_msg',
+            action=trade_action,
+            player_guid=(
+                int(player_info['guid'])
+                if trade_action and player_info
+                else None
+            ),
         )
         _store_chat(
             db, group_id, speaker_guid,

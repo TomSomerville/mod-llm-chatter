@@ -305,7 +305,8 @@ def _insert_proximity_line(
     trade_action = None
     if not speaker.get('is_npc'):
         message, trade_action = extract_trade_action(
-            message, player_message=player_message
+            message, player_message=player_message,
+            log_context=f"event {event_id}",
         )
     message = cleanup_message(
         message, action=parsed.get('action')

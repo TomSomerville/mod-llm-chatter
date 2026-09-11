@@ -652,34 +652,45 @@ BOT_FACTS_GROUNDING_INSTRUCTIONS = (
 
 BOT_FACTS_TRADE_INSTRUCTIONS = (
     "TRADING: You can physically hand over items "
-    "listed under Inventory (not Equipped — those "
-    "are in use). To hand an item over, append on "
-    "its own final line, after your reply text, "
-    "exactly: <<TRADE|Item Name|count>> "
-    "WHEN to emit the tag — look at the player's "
-    "LATEST message only: "
-    "(1) EMIT if it is an acceptance of your offer "
-    "or an explicit request to hand the item over: "
-    "'yes please', 'yes, trade it to me', 'I'll "
-    "take it', 'give me 10', 'hand them over', "
-    "'sure, I'll take one'. "
-    "(2) NEVER emit if it is a QUESTION about "
-    "availability or ability — 'do you have a "
-    "skinning knife?', 'got any silk?', 'can you "
-    "give me water?' — even though the item is on "
-    "your sheet. A message asking WHETHER is never "
-    "a confirmation; answer and offer instead "
-    "('yeah I have one, want it?'). "
-    "COUNT rules: use the number the player stated; "
-    "if they said 'it', 'one', 'some' or gave no "
-    "number but the item is unambiguous from the "
-    "conversation, use 1; if they said 'all' or "
-    "'all of them', use the full sheet count. Never "
-    "exceed the sheet count. "
-    "The item name must exactly match the Inventory "
-    "entry on the sheet. At most one tag per reply. "
-    "If you emit the tag, your reply text should "
-    "acknowledge the handover naturally."
+    "listed under Inventory (not Equipped - those "
+    "are in use). To hand an item over, place the "
+    "marker <<TRADE|Item Name|count>> at the VERY "
+    "END of your spoken text, INSIDE the message "
+    "field of your JSON response (never outside "
+    "the JSON). The marker is machine-read and "
+    "stripped before the player sees your words. "
+    "Example exchange: player says 'do you have a "
+    "skinning knife?' -> message: 'Yeah, I have "
+    "one! Want it?' (NO marker: a question about "
+    "availability is never a confirmation; answer "
+    "and offer). Player then says 'yes please' -> "
+    "message: 'Here you go! <<TRADE|Skinning "
+    "Knife|1>>' (marker: the player accepted). "
+    "WHEN to add the marker - judge the player's "
+    "LATEST message only: add it when that message "
+    "accepts your offer or explicitly asks you to "
+    "hand the item over ('yes please', 'trade it "
+    "to me', 'I will take it', 'give me 10', "
+    "'hand them over'). NEVER add it when the "
+    "latest message merely asks whether you have "
+    "or can give something, even though the item "
+    "is on your sheet. "
+    "COUNT: use the number the player stated; "
+    "'it', 'one', 'some', or no number with an "
+    "unambiguous item means 1; 'all' or 'all of "
+    "them' means the full sheet count; never "
+    "exceed the sheet count. The item name must "
+    "exactly match the Inventory entry. At most "
+    "one marker per reply. The marker is stripped "
+    "before display and does NOT count toward any "
+    "length limit — never omit it to save space. "
+    "CRITICAL: the marker is the ONLY thing that "
+    "actually hands the item over. Saying 'here "
+    "you go' or 'incoming' WITHOUT the marker "
+    "gives the player nothing and breaks your "
+    "promise. If your reply agrees to hand an "
+    "item over, the message string MUST end with "
+    "the marker."
 )
 
 # Matches <<TRADE|Item Name|count>> anywhere in a reply.
@@ -689,7 +700,25 @@ _TRADE_TAG_RE = re.compile(
 )
 
 
-def extract_trade_action(text, player_message=None):
+def _looks_like_trade_confirmation(player_message):
+    """Heuristic breadcrumb check: does the player's
+    message look like a handover confirmation?"""
+    if not player_message:
+        return False
+    msg = player_message.strip().lower()
+    if '?' in msg:
+        return False
+    return any(
+        word in msg
+        for word in (
+            'yes', 'please', 'take', 'give', 'trade'
+        )
+    )
+
+
+def extract_trade_action(
+    text, player_message=None, log_context=''
+):
     """Split a trade tag out of LLM reply text.
 
     Returns (clean_text, action_or_None) where action
@@ -732,6 +761,28 @@ def extract_trade_action(text, player_message=None):
                 action, stripped,
             )
             action = None
+    _trade_logger = logging.getLogger(
+        'chatter_shared'
+    )
+    if action:
+        _trade_logger.info(
+            "trade tag extracted%s: %s",
+            f" ({log_context})"
+            if log_context else "",
+            action,
+        )
+    elif _looks_like_trade_confirmation(
+        player_message
+    ):
+        _trade_logger.info(
+            "trade-enabled reply had no tag%s "
+            "despite confirmation-ish player "
+            "message %r; response: %.80s",
+            f" ({log_context})"
+            if log_context else "",
+            player_message.strip(),
+            text,
+        )
     clean = _TRADE_TAG_RE.sub("", text)
     # Remove any malformed/hallucinated tag remnants.
     clean = re.sub(r"<<[^<>]*>>", "", clean)

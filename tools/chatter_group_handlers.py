@@ -2640,7 +2640,8 @@ def execute_player_msg_conversation(
             msg_text, msg['name']
         )
         text, trade_action = extract_trade_action(
-            text, player_message=player_message
+            text, player_message=player_message,
+            log_context=f"event {event_id}",
         )
         text = cleanup_message(
             text, action=msg.get('action')

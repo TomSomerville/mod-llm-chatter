@@ -1837,6 +1837,7 @@ def process_group_player_msg_event(
                         zone_id=zone_id,
                         area_id=area_id,
                         map_id=map_id,
+                        extra_data=extra_data,
                     )
                 )
                 if conv_ok:
@@ -1981,7 +1982,8 @@ def process_group_player_msg_event(
             parsed['message'], bot_name
         )
         message, trade_action = extract_trade_action(
-            message, player_message=player_message
+            message, player_message=player_message,
+            log_context=f"event {event_id}",
         )
         message = cleanup_message(
             message, action=parsed.get('action')

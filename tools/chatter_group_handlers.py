@@ -4,6 +4,7 @@ import logging
 import random
 import re
 from chatter_shared import (
+    build_bot_facts_lines_multi,
     parse_extra_data,
     get_class_name,
     get_race_name,
@@ -2421,6 +2422,7 @@ def execute_player_msg_conversation(
     item_context="", link_context="",
     items_info=None,
     zone_id=0, area_id=0, map_id=0,
+    extra_data=None,
 ):
     """Run a multi-bot conversation responding to
     a player's party chat message.
@@ -2557,6 +2559,12 @@ def execute_player_msg_conversation(
         zone_id=zone_id,
         area_id=area_id,
         map_id=map_id,
+        bot_facts_context="\n".join(
+            build_bot_facts_lines_multi(
+                extra_data,
+                [b['name'] for b in bots],
+            )
+        ),
     )
 
     # Token budget: max_tokens * (1 + num_bots),

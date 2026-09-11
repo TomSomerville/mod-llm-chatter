@@ -27,6 +27,7 @@ from chatter_shared import (
     find_addressed_bot,
     insert_chat_message,
     build_anti_repetition_context,
+    build_bot_facts_lines,
     get_recent_zone_messages,
     append_json_instruction,
     parse_single_response,
@@ -353,6 +354,7 @@ def _build_general_response_prompt(
     zone_flavor="",
     subzone_name="",
     subzone_lore="",
+    bot_facts_context="",
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
@@ -488,6 +490,8 @@ def _build_general_response_prompt(
     )
     if anti_rep:
         prompt += f"\n{anti_rep}"
+    if bot_facts_context:
+        prompt += f"\n{bot_facts_context}"
     prompt = append_json_instruction(
         prompt, allow_action, skip_emote=True,
         skip_action_rng=True,
@@ -508,6 +512,7 @@ def _build_general_followup_prompt(
     zone_flavor="",
     subzone_name="",
     subzone_lore="",
+    bot_facts_context="",
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
@@ -632,6 +637,8 @@ def _build_general_followup_prompt(
     )
     if anti_rep:
         prompt += f"\n{anti_rep}"
+    if bot_facts_context:
+        prompt += f"\n{bot_facts_context}"
     prompt = append_json_instruction(
         prompt, allow_action, skip_emote=True,
         skip_action_rng=True,
@@ -781,6 +788,11 @@ def process_general_player_msg_event(
             zone_flavor=zone_flavor,
             subzone_name=subzone_name,
             subzone_lore=subzone_lore,
+            bot_facts_context="\n".join(
+                build_bot_facts_lines(
+                    extra_data, bot1_name
+                )
+            ),
         )
 
         max_tokens = int(config.get(
@@ -890,6 +902,7 @@ def process_general_player_msg_event(
                     subzone_name=subzone_name,
                     subzone_lore=subzone_lore,
                     zone_meta=zone_meta,
+                    extra_data=extra_data,
                 )
                 # Extended conversation chance
                 if (
@@ -971,6 +984,7 @@ def _general_followup(
     subzone_name="",
     subzone_lore="",
     zone_meta=None,
+    extra_data=None,
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -1035,6 +1049,11 @@ def _general_followup(
         zone_flavor=zone_flavor,
         subzone_name=subzone_name,
         subzone_lore=subzone_lore,
+        bot_facts_context="\n".join(
+            build_bot_facts_lines(
+                extra_data, bot2_name
+            )
+        ),
     )
 
     max_tokens = int(config.get(

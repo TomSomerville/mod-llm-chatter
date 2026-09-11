@@ -2096,6 +2096,7 @@ def build_player_response_prompt(
     stored_tone=None,
     memories=None,
     travel_context="",
+    bot_facts_context="",
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -2305,6 +2306,8 @@ def build_player_response_prompt(
             "not the topic): "
             + "; ".join(spices)
         )
+    if bot_facts_context:
+        prompt += f"\n{bot_facts_context}"
     return append_json_instruction(
         prompt, allow_action
     )
@@ -4024,6 +4027,7 @@ def build_player_msg_conversation_prompt(
     speaker_talent_context=None,
     target_talent_context=None,
     zone_id=0, area_id=0, map_id=0,
+    bot_facts_context="",
 ):
     """Build prompt for a multi-bot conversation
     responding to a player's party chat message.
@@ -4231,6 +4235,9 @@ def build_player_msg_conversation_prompt(
     anti_rep = build_anti_repetition_context(recent)
     if anti_rep:
         parts.append(anti_rep)
+
+    if bot_facts_context:
+        parts.append(bot_facts_context)
 
     prompt = '\n'.join(parts)
 

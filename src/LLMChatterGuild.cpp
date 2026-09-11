@@ -491,7 +491,8 @@ void HandleGuildPlayerMessage(
         R"("player_gender":{},)"
         R"("player_message":"{}",)"
         R"("team":"{}",)"
-        R"("candidates":{}}})",
+        R"("candidates":{},)"
+        R"("bot_facts_by_name":{}}})",
         guildId,
         JsonEscape(guildName),
         sessionId,
@@ -501,7 +502,8 @@ void HandleGuildPlayerMessage(
         player->getGender(),
         JsonEscape(message),
         teamName,
-        candidates);
+        candidates,
+        BuildBotFactsByNameJson(bots, 4));
 
     QueueChatterEvent(
         "guild_player_message",

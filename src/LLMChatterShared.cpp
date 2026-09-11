@@ -5,6 +5,8 @@
 #include "LLMChatterShared.h"
 
 #include "LLMChatterConfig.h"
+#include "AiFactory.h"
+#include "Bag.h"
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Chat.h"
@@ -1870,6 +1872,170 @@ std::string BuildBotStateJson(Player* player)
             JsonEscape(targetName) + "\","
         "\"bot_ai_state\":\"" + botState + "\","
         + BuildBotTravelStateJson(player) + "}";
+}
+
+namespace
+{
+void AccumulateBotFactsItem(
+    Item* item,
+    std::map<std::string, uint32>& counts)
+{
+    if (!item)
+        return;
+
+    ItemTemplate const* proto = item->GetTemplate();
+    if (!proto || proto->Name1.empty())
+        return;
+
+    counts[proto->Name1] += item->GetCount();
+}
+} // namespace
+
+std::string BuildBotFactsJson(Player* bot)
+{
+    if (!bot)
+        return "{}";
+
+    std::string spec;
+    if (IsPlayerBot(bot))
+        spec = AiFactory::GetPlayerSpecName(bot);
+
+    std::string json = "{"
+        "\"class\":\""
+        + JsonEscape(
+            GetChatterClassName(bot->getClass()))
+        + "\",\"race\":\""
+        + JsonEscape(GetRaceName(bot->getRace()))
+        + "\",\"level\":"
+        + std::to_string(bot->GetLevel())
+        + ",\"spec\":\"" + JsonEscape(spec)
+        + "\",\"gold\":"
+        + std::to_string(bot->GetMoney() / 10000);
+
+    // Primary professions (WotLK skill line ids).
+    static std::array<
+        std::pair<uint32, char const*>, 11> const
+        professionSkills = {{
+            {164, "Blacksmithing"},
+            {165, "Leatherworking"},
+            {171, "Alchemy"},
+            {182, "Herbalism"},
+            {186, "Mining"},
+            {197, "Tailoring"},
+            {202, "Engineering"},
+            {333, "Enchanting"},
+            {393, "Skinning"},
+            {755, "Jewelcrafting"},
+            {773, "Inscription"},
+        }};
+
+    json += ",\"professions\":[";
+    bool firstProfession = true;
+    for (auto const& [skillId, name] : professionSkills)
+    {
+        if (!bot->HasSkill(skillId))
+            continue;
+        if (!firstProfession)
+            json += ",";
+        firstProfession = false;
+        json += "\"" + std::string(name) + "\"";
+    }
+    json += "]";
+
+    // Inventory: backpack + the 4 equipped bags,
+    // aggregated by item name.
+    std::map<std::string, uint32> counts;
+    for (uint8 slot = INVENTORY_SLOT_ITEM_START;
+         slot < INVENTORY_SLOT_ITEM_END; ++slot)
+        AccumulateBotFactsItem(
+            bot->GetItemByPos(
+                INVENTORY_SLOT_BAG_0, slot),
+            counts);
+    for (uint8 bagSlot = INVENTORY_SLOT_BAG_START;
+         bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+    {
+        Bag* bag = bot->GetBagByPos(bagSlot);
+        if (!bag)
+            continue;
+        for (uint32 slot = 0;
+             slot < bag->GetBagSize(); ++slot)
+            AccumulateBotFactsItem(
+                bot->GetItemByPos(bagSlot, slot),
+                counts);
+    }
+
+    std::vector<std::pair<std::string, uint32>> items(
+        counts.begin(), counts.end());
+    std::sort(
+        items.begin(), items.end(),
+        [](auto const& left, auto const& right)
+        {
+            if (left.second != right.second)
+                return left.second > right.second;
+            return left.first < right.first;
+        });
+
+    constexpr size_t maxInventoryEntries = 60;
+    bool truncated =
+        items.size() > maxInventoryEntries;
+    if (truncated)
+        items.resize(maxInventoryEntries);
+
+    json += ",\"inventory\":[";
+    for (size_t i = 0; i < items.size(); ++i)
+    {
+        if (i)
+            json += ",";
+        json += "{\"name\":\""
+            + JsonEscape(items[i].first)
+            + "\",\"count\":"
+            + std::to_string(items[i].second) + "}";
+    }
+    json += "]";
+    if (truncated)
+        json += ",\"inventory_truncated\":true";
+
+    json += ",\"equipped\":[";
+    bool firstEquipped = true;
+    for (uint8 slot = EQUIPMENT_SLOT_START;
+         slot < EQUIPMENT_SLOT_END; ++slot)
+    {
+        Item* item = bot->GetItemByPos(
+            INVENTORY_SLOT_BAG_0, slot);
+        if (!item)
+            continue;
+        ItemTemplate const* proto =
+            item->GetTemplate();
+        if (!proto || proto->Name1.empty())
+            continue;
+        if (!firstEquipped)
+            json += ",";
+        firstEquipped = false;
+        json += "\"" + JsonEscape(proto->Name1)
+            + "\"";
+    }
+    json += "]}";
+
+    return json;
+}
+
+std::string BuildBotFactsByNameJson(
+    std::vector<Player*> const& bots, uint32 maxBots)
+{
+    std::string json = "{";
+    uint32 added = 0;
+    for (Player* bot : bots)
+    {
+        if (!bot || added >= maxBots)
+            continue;
+        if (added)
+            json += ",";
+        json += "\"" + JsonEscape(bot->GetName())
+            + "\":" + BuildBotFactsJson(bot);
+        ++added;
+    }
+    json += "}";
+    return json;
 }
 
 std::string GetBotTravelMode(Player* player)

@@ -866,21 +866,19 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     uint32 groupId =
         group->GetGUID().GetCounter();
 
-    bool hasBotInGroup = false;
+    std::vector<Player*> groupBots;
     for (GroupReference* itr =
              group->GetFirstMember();
          itr != nullptr; itr = itr->next())
     {
         if (Player* member = itr->GetSource())
         {
-            if (IsPlayerBot(member))
-            {
-                hasBotInGroup = true;
-                break;
-            }
+            if (member->IsInWorld()
+                && IsPlayerBot(member))
+                groupBots.push_back(member);
         }
     }
-    if (!hasBotInGroup)
+    if (groupBots.empty())
         return;
 
     std::string playerName = player->GetName();
@@ -942,7 +940,9 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
         "\"player_message\":\"" +
             JsonEscape(safeMsg) + "\","
         "\"group_id\":" +
-            std::to_string(groupId) +
+            std::to_string(groupId) + ","
+        "\"bot_facts_by_name\":" +
+            BuildBotFactsByNameJson(groupBots, 4) +
         "}";
 
     extraData = EscapeString(extraData);

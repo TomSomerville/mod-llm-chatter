@@ -6,6 +6,7 @@
 #include <ctime>
 #include <map>
 #include <string>
+#include <vector>
 
 class Creature;
 class Group;
@@ -49,6 +50,13 @@ std::string GetRaceName(uint8 raceId);
 std::string BuildBotIdentityFields(
     Player* player, bool includeRoles = false);
 std::string BuildBotStateJson(Player* player);
+// Compact, authoritative facts about a bot (class, spec,
+// gold, professions, inventory, equipment) as a JSON
+// object, used to ground LLM replies to real players.
+std::string BuildBotFactsJson(Player* bot);
+// {"<bot name>": <facts>, ...} for up to maxBots bots.
+std::string BuildBotFactsByNameJson(
+    std::vector<Player*> const& bots, uint32 maxBots = 4);
 std::string BuildBotTravelStateJson(Player* player);
 std::string GetBotTravelContext(Player* player);
 std::string GetBotTravelMode(Player* player);

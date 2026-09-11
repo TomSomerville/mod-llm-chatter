@@ -631,6 +631,161 @@ def build_race_class_context_parts(
     )
 
 
+BOT_FACTS_GROUNDING_INSTRUCTIONS = (
+    "The character sheet above is the bot's actual "
+    "game data and is authoritative. When the player "
+    "asks whether you have, can give, can craft, or "
+    "need an item: answer ONLY from the character "
+    "sheet. If an item is not in your inventory, you "
+    "do not have it — say so plainly. For gear/stat "
+    "questions, reason from your class and spec (e.g. "
+    "a Priest does not need Strength). Never invent "
+    "items, quantities, professions, or abilities "
+    "that are not on the sheet. If the sheet lacks "
+    "the information, say you're not sure instead of "
+    "guessing."
+)
+
+
+def get_bot_facts(extra_data, bot_name=''):
+    """Return the bot_facts dict for a bot, or None.
+
+    Looks at extra_data['bot_facts'] first (single
+    known responder), then bot_facts_by_name keyed by
+    the bot's character name. Backward compatible:
+    returns None when the event carries no facts.
+    """
+    if not extra_data or not isinstance(
+        extra_data, dict
+    ):
+        return None
+    facts = extra_data.get('bot_facts')
+    if isinstance(facts, dict) and facts:
+        return facts
+    by_name = extra_data.get('bot_facts_by_name')
+    if (
+        bot_name
+        and isinstance(by_name, dict)
+    ):
+        facts = by_name.get(bot_name)
+        if isinstance(facts, dict) and facts:
+            return facts
+    return None
+
+
+def format_bot_facts_sheet(facts, bot_name=''):
+    """Render a compact authoritative character sheet
+    from C++ bot_facts data."""
+    if not facts or not isinstance(facts, dict):
+        return ""
+    header = "CHARACTER SHEET (authoritative)"
+    if bot_name:
+        header += f" for {bot_name}"
+    lines = [header + ":"]
+    identity_bits = []
+    for key in ('race', 'class', 'spec'):
+        value = facts.get(key)
+        if value:
+            identity_bits.append(str(value))
+    level = facts.get('level')
+    if level is not None:
+        identity_bits.append(f"level {level}")
+    if identity_bits:
+        lines.append("- " + " ".join(identity_bits))
+    gold = facts.get('gold')
+    if gold is not None:
+        lines.append(f"- Gold: {gold}")
+    professions = facts.get('professions')
+    if isinstance(professions, list):
+        lines.append(
+            "- Professions: "
+            + (", ".join(
+                str(p) for p in professions
+            ) or "none")
+        )
+    equipped = facts.get('equipped')
+    if isinstance(equipped, list):
+        lines.append(
+            "- Equipped: "
+            + (", ".join(
+                str(e) for e in equipped
+            ) or "nothing")
+        )
+    inventory = facts.get('inventory')
+    if isinstance(inventory, list):
+        entries = []
+        for item in inventory:
+            if not isinstance(item, dict):
+                continue
+            name = item.get('name')
+            if not name:
+                continue
+            count = item.get('count', 1)
+            try:
+                count = int(count)
+            except (TypeError, ValueError):
+                count = 1
+            entries.append(
+                f"{name} x{count}"
+                if count > 1 else str(name)
+            )
+        suffix = ""
+        if facts.get('inventory_truncated'):
+            suffix = (
+                " (list truncated to the most "
+                "numerous items)"
+            )
+        lines.append(
+            "- Inventory: "
+            + (", ".join(entries) or "empty")
+            + suffix
+        )
+    return "\n".join(lines)
+
+
+def build_bot_facts_lines(extra_data, bot_name=''):
+    """Character sheet + grounding instructions as
+    prompt lines. Empty list when the event carries
+    no bot facts (backward compatible)."""
+    facts = get_bot_facts(extra_data, bot_name)
+    if not facts:
+        return []
+    sheet = format_bot_facts_sheet(facts, bot_name)
+    if not sheet:
+        return []
+    return [
+        "",
+        sheet,
+        BOT_FACTS_GROUNDING_INSTRUCTIONS,
+    ]
+
+
+def build_bot_facts_lines_multi(
+    extra_data, bot_names
+):
+    """Character sheets for several bots plus one
+    shared grounding-instruction block. Empty list
+    when no bot has facts (backward compatible)."""
+    if not extra_data or not isinstance(
+        extra_data, dict
+    ):
+        return []
+    by_name = extra_data.get('bot_facts_by_name')
+    if not isinstance(by_name, dict):
+        return []
+    lines = []
+    for name in bot_names:
+        facts = by_name.get(name)
+        if not isinstance(facts, dict) or not facts:
+            continue
+        sheet = format_bot_facts_sheet(facts, name)
+        if sheet:
+            lines.extend(["", sheet])
+    if lines:
+        lines.append(BOT_FACTS_GROUNDING_INSTRUCTIONS)
+    return lines
+
+
 def build_bot_state_context(extra_data, mode='roleplay'):
     """Build natural-language state description
     from C++ bot_state data in extra_data."""

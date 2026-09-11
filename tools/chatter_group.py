@@ -36,6 +36,7 @@ _chat_history_limit = 10
 _spice_count = 2
 
 from chatter_shared import (
+    build_bot_facts_lines,
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     get_gender_label,
@@ -1915,6 +1916,11 @@ def process_group_player_msg_event(
             stored_tone=stored_tone,
             memories=msg_memories,
             travel_context=travel_context,
+            bot_facts_context="\n".join(
+                build_bot_facts_lines(
+                    extra_data, bot_name
+                )
+            ),
         )
 
         max_tokens = pick_random_max_tokens(config)

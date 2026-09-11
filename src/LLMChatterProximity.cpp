@@ -1111,6 +1111,42 @@ void QueuePlayerSayProximityEvent(
     if (!addressedName.empty())
         extra += ",\"addressed_name\":\""
             + JsonEscape(addressedName) + "\"";
+
+    // Grounding facts: single directed bot responder
+    // gets "bot_facts"; otherwise the bridge picks the
+    // speaker, so ship "bot_facts_by_name" for up to 4
+    // bot candidates.
+    if (!addressedName.empty()
+        && speakers.size() == 1
+        && !first.isNPC && first.bot)
+    {
+        extra += ",\"bot_facts\":"
+            + BuildBotFactsJson(first.bot);
+    }
+    else
+    {
+        std::vector<Player*> factBots;
+        for (auto const& s : speakers)
+            if (!s.isNPC && s.bot)
+                factBots.push_back(s.bot);
+        for (auto const& c : allCandidates)
+        {
+            if (c.isNPC || !c.bot)
+                continue;
+            bool known = false;
+            for (Player* b : factBots)
+                if (b == c.bot)
+                {
+                    known = true;
+                    break;
+                }
+            if (!known)
+                factBots.push_back(c.bot);
+        }
+        if (!factBots.empty())
+            extra += ",\"bot_facts_by_name\":"
+                + BuildBotFactsByNameJson(factBots, 4);
+    }
     if (!json.empty() && json.back() == '}')
         json.insert(json.size() - 1, extra);
 
@@ -1707,7 +1743,15 @@ void HandleProximityPlayerSay(
                 ? GetProximityNPCQualificationLabel(
                     GetProximityNPCQualification(
                         responderCreature)) : "")
-        + "}";
+        + "\"";
+
+    // Grounding facts for the known bot responder.
+    if (!scene->lastSpeakerIsNPC)
+        if (Player* responderBot = target->ToPlayer())
+            json += ",\"bot_facts\":"
+                + BuildBotFactsJson(responderBot);
+
+    json += "}";
 
     QueueChatterEvent(
         "proximity_reply",

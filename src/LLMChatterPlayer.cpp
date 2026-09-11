@@ -1125,7 +1125,9 @@ public:
             "\"zone_name\":\"" +
                 JsonEscape(zoneName) + "\","
             "\"bot_guids\":" + botGuids + ","
-            "\"bot_names\":" + botNames +
+            "\"bot_names\":" + botNames + ","
+            "\"bot_facts_by_name\":" +
+                BuildBotFactsByNameJson(zoneBots, 4) +
             "}";
 
         extraData = EscapeString(extraData);

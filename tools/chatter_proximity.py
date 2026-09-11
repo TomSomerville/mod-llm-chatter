@@ -27,6 +27,8 @@ from chatter_shared import (
     get_gender_label,
     get_race_name,
     strip_conversation_actions,
+    build_bot_facts_lines,
+    build_bot_facts_lines_multi,
 )
 from chatter_mode import (
     build_npc_chat_guidance,
@@ -435,6 +437,10 @@ def _single_prompt(
                 f"Speaker background: "
                 f"{speaker_backstory}"
             )
+    if not speaker.get('is_npc'):
+        lines.extend(build_bot_facts_lines(
+            extra, speaker.get('name', '')
+        ))
     lines.append(f"Topic seed: {topic}")
 
     if player_message:
@@ -993,6 +999,10 @@ def _player_say_single_prompt(
     )
     if speech_guidance:
         lines.append(speech_guidance)
+    if not speaker.get('is_npc'):
+        lines.extend(build_bot_facts_lines(
+            extra, speaker.get('name', '')
+        ))
 
     addressed = extra.get('addressed_name', '')
     if addressed:
@@ -1111,6 +1121,15 @@ def _player_say_conversation_prompt(
 
     lines.append("Speakers:")
     lines.append(roster)
+
+    lines.extend(build_bot_facts_lines_multi(
+        extra,
+        [
+            p.get('name', '')
+            for p in participants
+            if not p.get('is_npc')
+        ],
+    ))
 
     speaker_names = [
         s.get('name', '') for s in participants

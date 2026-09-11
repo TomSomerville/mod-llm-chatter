@@ -26,6 +26,7 @@ from chatter_prompts import (
 )
 from chatter_shared import (
     append_conversation_json_instruction,
+    build_bot_facts_lines_multi,
     append_json_instruction,
     build_conversation_json_repair_prompt,
     calculate_dynamic_delay,
@@ -1206,6 +1207,20 @@ def process_guild_player_message_event(
         extra.get('guild_name') or 'the guild'
     )
     faction = str(extra.get('team') or '')
+
+    # Grounded responses: authoritative character
+    # sheets for the responding bots ride along in
+    # the session context block.
+    facts_lines = build_bot_facts_lines_multi(
+        extra,
+        [r['name'] for r in responders],
+    )
+    if facts_lines:
+        facts_block = "\n".join(facts_lines).strip()
+        session_context = (
+            f"{session_context}\n{facts_block}"
+            if session_context else facts_block
+        )
 
     if topology == 'single':
         messages = _generate_single_reply(

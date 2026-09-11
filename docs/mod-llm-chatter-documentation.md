@@ -329,6 +329,27 @@ Owns outbound delivery behavior:
 - party, raid, BG, yell, and General delivery paths
 - post-send delivery and retry updates
 
+### `src/LLMChatterTrade.cpp`
+
+- Scripted item handover for `TRADE|Item Name|count` actions attached to
+  delivered lines (the LLM only decides that a handover was agreed).
+- Validates (group member or master, trade range, neither side busy),
+  resolves whole stacks by item name, opens the trade window from the
+  bot's side, waits for the core's `TRADE_STATUS_OPEN_WINDOW` to reach
+  the bot (via a `PlayerbotScript::OnPlayerbotPacketSent` hook) before
+  placing the stacks, then pre-accepts and keeps the acceptance current
+  until the trade completes. Cancels with a whisper if the window never
+  opens or nothing could be placed.
+
+### `src/LLMChatterCommandRelay.cpp`
+
+- Requires `AiPlayerbot.CommandPrefix` to be set in `playerbots.conf`;
+  inert when it is empty.
+- Mirrors mod-playerbots' chat dispatch (whisper, group, guild, channel)
+  but only relays lines that `IsLikelyPlayerbotControlCommand` accepts,
+  with the prefix prepended, so plain speech never reaches playerbots'
+  command parser while typed commands keep working.
+
 ### `src/LLMChatterAmbient.cpp`
 
 Owns ambient world/event behavior:

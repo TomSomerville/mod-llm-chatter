@@ -9,6 +9,8 @@ AI-powered conversations for [AzerothCore](https://www.azerothcore.org/) playerb
 - **Anthropic/Claude only** — all other LLM providers (OpenAI, Google, OpenRouter, Ollama) are stripped out for a simpler, smaller module.
 - **Playerbot-only speech** — NPCs never answer players; only playerbots respond and chatter.
 - **No dropped messages** — if a conversation's designated responder despawned or walked out of range, a fresh nearby bot answers instead of the message vanishing.
+- **Conversational trading** — agree to a handover in chat ("can you trade me that potion?") and the bot opens the window, puts the item in once your client shows the window, and pre-accepts; you just click Trade. The LLM only decides *that* a handover was agreed; the mechanics are scripted in `src/LLMChatterTrade.cpp`.
+- **Speech never triggers playerbot commands** — stock mod-playerbots treats every party/whisper line as a possible command, so "trade me the potion" would open a trade window by itself. This fork requires a playerbots command prefix (see Set up) and relays only genuine commands to the bots, so typed commands like `follow` keep working while conversation goes only to the LLM.
 - **Claude subscription support** — authenticate with a Claude Pro/Max OAuth token from `claude setup-token` (uses your plan's included Agent SDK credits) instead of a paid API key. Paste the `sk-ant-oat...` token where the API key goes; it's detected automatically.
 
 ## Requirements
@@ -48,9 +50,24 @@ python3 -m venv ~/llm-bridge-venv
 
 **2. Set the database credentials** in the same file (`LLMChatter.Database.*`) to match your AzerothCore characters DB.
 
-**3. Start the server once** — worldserver imports the module's SQL automatically.
+**3. Configure mod-playerbots** — edit `playerbots.conf` (mod-playerbots is left untouched; only its config changes):
 
-**4. Start the bridge** (does all LLM work; the game server never blocks on it):
+```ini
+# Playerbots must ignore plain chat so conversation reaches only the LLM.
+# This fork relays real commands to the bots itself, so "follow", "stay",
+# "@tank attack" etc. still work typed plainly; "~command" always works.
+# Do not use "!" or "." — the core intercepts those as GM command attempts.
+AiPlayerbot.CommandPrefix = "~"
+
+# Otherwise a linked item in chat opens a trade window by itself.
+AiPlayerbot.EnableAutoTradeOnItemMention = 0
+```
+
+Trading also relies on `AiPlayerbot.EnableRandomBotTrading` not being `0` (the default `1` is fine).
+
+**4. Start the server once** — worldserver imports the module's SQL automatically.
+
+**5. Start the bridge** (does all LLM work; the game server never blocks on it):
 
 ```bash
 ~/llm-bridge-venv/bin/python mod-llm-chatter/tools/llm_chatter_bridge.py \
@@ -59,7 +76,7 @@ python3 -m venv ~/llm-bridge-venv
 
 Its startup health check tells you if anything is misconfigured.
 
-**5. In game:** stand near a bot and `/say` hello. Target a bot (or use its name) to address it directly. Grouped bots chat in party; bots also answer you in General and guild chat.
+**6. In game:** stand near a bot and `/say` hello. Target a bot (or use its name) to address it directly. Grouped bots chat in party; bots also answer you in General and guild chat.
 
 ## Staying current with upstream
 

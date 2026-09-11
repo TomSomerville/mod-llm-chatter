@@ -7,8 +7,10 @@
 #include "LLMChatterGroup.h"
 #include "LLMChatterRaid.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterTrade.h"
 
 void AddLLMChatterCommandScripts();
+void AddLLMChatterCommandRelayScripts();
 
 void AddLLMChatterScripts()
 {
@@ -19,4 +21,6 @@ void AddLLMChatterScripts()
     AddLLMChatterBGScripts();
     AddLLMChatterRaidScripts();
     AddLLMChatterCommandScripts();
+    AddLLMChatterTradeScripts();
+    AddLLMChatterCommandRelayScripts();
 }

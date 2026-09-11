@@ -48,6 +48,7 @@
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
@@ -894,6 +895,17 @@ bool IsLikelyPlayerbotControlCommand(
     std::string msg = toLowerAscii(trim(message));
     if (msg.empty())
         return false;
+
+    // With AiPlayerbot.CommandPrefix set, a line that
+    // carries the prefix is an explicit bot command that
+    // playerbots handles itself; never send it to the LLM.
+    {
+        std::string const& prefix =
+            sPlayerbotAIConfig.commandPrefix;
+        if (!prefix.empty()
+            && trim(message).rfind(prefix, 0) == 0)
+            return true;
+    }
 
     // Playerbots @target selector syntax is control traffic,
     // not conversational content.

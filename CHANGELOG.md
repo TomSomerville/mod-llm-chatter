@@ -1,5 +1,44 @@
 # Changelog
 
+### 2026-09-11 - Playerbot Command Relay
+
+* **Speech no longer triggers playerbot commands**: Stock mod-playerbots
+  parses every party/whisper/guild/channel line as a possible command
+  and matches shorter and shorter prefixes, so "trade me the potion"
+  ran its `trade` command and opened a window seconds before the LLM
+  answered. The fork now expects `AiPlayerbot.CommandPrefix` to be set
+  in playerbots.conf (`"~"` is recommended; `!` and `.` are swallowed
+  by the core as GM command attempts). Playerbots then ignores plain
+  chat, and the new `src/LLMChatterCommandRelay.cpp` re-sends only the
+  lines the fork's classifier already treats as commands, with the
+  prefix prepended. Typed commands (`follow`, `stay`, `@tank attack`)
+  keep working; `~command` always works; speech goes only to the LLM.
+  mod-playerbots itself is untouched. With an empty prefix the relay is
+  inert and stock behaviour applies.
+* **Recommended playerbots.conf settings**:
+  `AiPlayerbot.CommandPrefix = "~"` and
+  `AiPlayerbot.EnableAutoTradeOnItemMention = 0` (the latter stops a
+  linked item in chat from opening a trade window by itself).
+
+### 2026-09-11 - Scripted Item Handover
+
+* **Items now actually land in the trade window**: A conversational
+  trade (`TRADE|Item Name|count` action on a delivered line) is driven
+  by a small state machine in `src/LLMChatterTrade.cpp` instead of the
+  playerbots `trade` chat action. The bot opens the window, waits for
+  the core to confirm the player's client has it open
+  (`TRADE_STATUS_OPEN_WINDOW`, observed through the `PlayerbotScript`
+  packet hook), then places the stacks. Previously the stacks were
+  placed in the same tick the window was requested, before the client
+  had opened it, so the client never displayed them.
+* **No haggling for agreed gifts**: The bot pre-accepts once the stacks
+  are in and keeps its acceptance current, so the player only has to
+  click Trade. This bypasses the stock playerbots price check that made
+  random bots demand gold for an item they had just agreed to give.
+* **Clear failure whispers**: If the window never opens (blocked or
+  busy player) or nothing could be placed, the bot cancels and says so
+  instead of leaving an empty window.
+
 ### 2026-09-09 - General Channel Pacing
 
 * **Cross-source conversation spacing**: Automated ambient, transport,

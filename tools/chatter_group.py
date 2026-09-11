@@ -419,15 +419,26 @@ def _is_playerbot_command(message: str) -> bool:
     if msg in PLAYERBOT_COMMANDS:
         return True
 
+    # A command word followed by conversational filler is
+    # speech, not command syntax ("trade it to me please").
+    def _conversational(text):
+        if text.endswith('?'):
+            return True
+        words = set(text.split())
+        return bool(words & {
+            'me', 'it', 'you', 'your', 'please',
+            'some', 'any', 'that', 'them', 'this',
+        })
+
     # Command + argument (e.g. "cast Holy Light")
     first_word = msg.split()[0]
-    if first_word in PLAYERBOT_COMMANDS:
+    if first_word in PLAYERBOT_COMMANDS and not _conversational(msg):
         return True
 
     # Multi-word command + argument
     # (e.g. "max dps on" or "tank attack now")
     for cmd in PLAYERBOT_COMMANDS:
-        if ' ' in cmd and msg.startswith(cmd):
+        if ' ' in cmd and msg.startswith(cmd) and not _conversational(msg):
             return True
 
     return False

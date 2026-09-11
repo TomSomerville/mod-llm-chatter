@@ -1105,13 +1105,37 @@ bool IsLikelyPlayerbotControlCommand(
         != exactCommands.end())
         return true;
 
+    // A command word followed by conversational filler is
+    // speech, not command syntax ("trade it to me please"),
+    // and should reach the LLM. Playerbots still executes
+    // real commands independently of this classifier.
+    auto looksConversational = [](std::string const& text)
+    {
+        if (!text.empty() && text.back() == '?')
+            return true;
+
+        static std::vector<std::string> const markers = {
+            " me", " it", " you", " your", " please",
+            " some", " any", " that", " them", " this"
+        };
+        std::string padded = " " + text + " ";
+        for (std::string const& marker : markers)
+            if (padded.find(marker + " ")
+                    != std::string::npos
+                || padded.find(marker + "?")
+                    != std::string::npos)
+                return true;
+        return false;
+    };
+
     size_t firstSpace = msg.find(' ');
     if (firstSpace != std::string::npos)
     {
         std::string firstWord =
             msg.substr(0, firstSpace);
         if (exactCommands.find(firstWord)
-            != exactCommands.end())
+                != exactCommands.end()
+            && !looksConversational(msg))
             return true;
     }
 
@@ -1121,7 +1145,8 @@ bool IsLikelyPlayerbotControlCommand(
         if (command.find(' ') == std::string::npos)
             continue;
 
-        if (msg.rfind(command, 0) == 0)
+        if (msg.rfind(command, 0) == 0
+            && !looksConversational(msg))
             return true;
     }
 

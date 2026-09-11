@@ -6,6 +6,9 @@ import re
 from chatter_shared import (
     build_bot_facts_lines_multi,
     extract_trade_action,
+    get_bot_facts,
+    infer_trade_action_via_llm,
+    should_infer_trade_action,
     parse_extra_data,
     get_class_name,
     get_race_name,
@@ -2634,6 +2637,11 @@ def execute_player_msg_conversation(
     )
     cumulative_delay = 2.0
     prev_len = 0
+    # One handover per event. If the addressed bot's
+    # reply agreed to give an item but the model left
+    # the marker out, ask it a structured follow-up.
+    event_traded = False
+    fallback_tried = False
     for seq, msg in enumerate(messages):
         msg_text = msg['message']
         text = strip_speaker_prefix(
@@ -2643,6 +2651,29 @@ def execute_player_msg_conversation(
             text, player_message=player_message,
             log_context=f"event {event_id}",
         )
+        if trade_action and event_traded:
+            trade_action = None
+        if (
+            trade_action is None
+            and not event_traded
+            and not fallback_tried
+            and msg['name'] == bots[0]['name']
+        ):
+            fallback_tried = True
+            facts = get_bot_facts(
+                extra_data, msg['name']
+            )
+            if should_infer_trade_action(
+                player_message, text, facts, chat_hist
+            ):
+                trade_action = infer_trade_action_via_llm(
+                    client, config, msg['name'], facts,
+                    chat_hist, player_name,
+                    player_message, text,
+                    log_context=f"event {event_id}",
+                )
+        if trade_action:
+            event_traded = True
         text = cleanup_message(
             text, action=msg.get('action')
         )

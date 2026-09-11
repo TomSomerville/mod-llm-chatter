@@ -789,6 +789,236 @@ def extract_trade_action(
     return clean.strip(), action
 
 
+# Reply phrasing that signals the bot is handing something
+# over right now. Together with the player's confirmation
+# this decides whether a marker-less reply is worth one
+# small intent-extraction call.
+_HANDOVER_REPLY_RE = re.compile(
+    r"(here (?:you|ya) go|there (?:you|ya) go|"
+    r"all yours|"
+    r"hand(?:s|ing|ed)?(?: (?:it|them|these|those|this|"
+    r"one|two|a few|some))? over|"
+    r"handing (?:it|them|these) to you|"
+    r"take (?:it|them|these|'em)|"
+    r"incoming|coming (?:at|to) (?:ya|you)|"
+    r"sending (?:it|them|these) (?:over|your way)|"
+    r"(?:it'?s|they'?re|these are) (?:all )?yours|"
+    r"passing (?:it|them|these) (?:over|to you)|"
+    r"giving (?:it|them|these) to you)",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_handover_reply(reply_text):
+    """Does the bot's reply read like it is giving
+    something away right now?"""
+    if not reply_text:
+        return False
+    return bool(_HANDOVER_REPLY_RE.search(reply_text))
+
+
+def _inventory_entries(bot_facts):
+    """[{'name': str, 'count': int}, ...] from a
+    bot_facts dict, or [] when unavailable."""
+    if not isinstance(bot_facts, dict):
+        return []
+    entries = []
+    for entry in bot_facts.get('inventory') or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get('name') or '').strip()
+        if not name:
+            continue
+        try:
+            count = int(entry.get('count') or 1)
+        except (TypeError, ValueError):
+            count = 1
+        entries.append(
+            {'name': name, 'count': max(count, 1)}
+        )
+    return entries
+
+
+def _context_mentions_inventory(inventory, texts):
+    """True when any text mentions an inventory item,
+    by full name or by its last word ('potion(s)',
+    'cloth'). Keeps the fallback from firing on
+    unrelated 'please'/'yes' chatter."""
+    blob = " ".join(
+        t for t in texts if t
+    ).lower()
+    if not blob.strip():
+        return False
+    for entry in inventory:
+        name = entry['name'].lower()
+        if name in blob:
+            return True
+        last = name.split()[-1]
+        if len(last) >= 4 and re.search(
+            r"\b" + re.escape(last) + r"(?:s|es)?\b",
+            blob,
+        ):
+            return True
+    return False
+
+
+def should_infer_trade_action(
+    player_message, reply_text, bot_facts,
+    chat_history=''
+):
+    """Marker-less reply: is an intent-extraction
+    call warranted? Requires (a) a confirmation-ish
+    player line or a handover-ish reply, (b) not a
+    bare availability question, and (c) an inventory
+    item actually mentioned in the recent exchange."""
+    stripped = (player_message or '').strip()
+    if stripped.endswith('?') and not any(
+        ch.isdigit() for ch in stripped
+    ):
+        return False
+    if not (
+        _looks_like_trade_confirmation(player_message)
+        or _looks_like_handover_reply(reply_text)
+    ):
+        return False
+    inventory = _inventory_entries(bot_facts)
+    if not inventory:
+        return False
+    recent = (chat_history or '').strip()
+    if len(recent) > 1200:
+        recent = recent[-1200:]
+    return _context_mentions_inventory(
+        inventory, [player_message, reply_text, recent]
+    )
+
+
+_TRADE_INTENT_JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def infer_trade_action_via_llm(
+    client, config, bot_name, bot_facts,
+    chat_history, player_name, player_message,
+    reply_text, log_context=''
+):
+    """Fallback when the chat reply agreed to a
+    handover but carried no <<TRADE|...>> marker.
+
+    Asks the quick-analyze model one structured
+    question (which inventory item, how many) and
+    validates the answer against the bot's real
+    inventory: the name must match an entry exactly
+    (case-insensitive) and the count is clamped to
+    what the bot holds. Returns a normalized
+    'TRADE|Item Name|count' string or None. The
+    script side executes it; the model never
+    touches game mechanics.
+    """
+    log = logging.getLogger('chatter_shared')
+    ctx = f" ({log_context})" if log_context else ""
+    if client is None or not config:
+        return None
+    try:
+        enabled = int(config.get(
+            'LLMChatter.GroupChatter.TradeIntentFallback',
+            1,
+        ))
+    except (TypeError, ValueError):
+        enabled = 1
+    if not enabled:
+        return None
+    inventory = _inventory_entries(bot_facts)
+    if not inventory:
+        return None
+
+    sheet = ", ".join(
+        f"{e['name']} x{e['count']}" for e in inventory
+    )
+    recent = (chat_history or '').strip()
+    if len(recent) > 1500:
+        recent = recent[-1500:]
+    prompt = (
+        "You extract one structured fact from a World "
+        "of Warcraft party chat exchange. Answer with "
+        "JSON only, no prose.\n\n"
+        f"{bot_name} is a player character talking to "
+        f"{player_name or 'the player'}.\n"
+        f"Inventory of {bot_name} (exact names): "
+        f"{sheet}\n\n"
+        "Recent chat, oldest first:\n"
+        f"{recent or '(none)'}\n\n"
+        f"{player_name or 'Player'}'s latest message: "
+        f"{(player_message or '').strip()}\n"
+        f"{bot_name}'s reply: "
+        f"{(reply_text or '').strip()}\n\n"
+        f"Question: with this reply, is {bot_name} "
+        "handing the player an inventory item right "
+        "now, because the player accepted an offer or "
+        "asked for it? An availability question, or "
+        "an offer still waiting for the player's "
+        "answer, is NOT a handover.\n"
+        'Answer {"item": "<exact inventory name>", '
+        '"count": <positive integer>} or '
+        '{"item": null}. count is the number the '
+        "player asked for; 'all', 'both', 'them' or "
+        "'all of them' means the full inventory count; "
+        "an unspecified amount means 1."
+    )
+    from chatter_llm import quick_llm_analyze
+    raw = quick_llm_analyze(
+        client, config, prompt, max_tokens=60,
+        label='trade_intent_fallback',
+    )
+    if not raw:
+        return None
+    match = _TRADE_INTENT_JSON_RE.search(raw)
+    if not match:
+        log.info(
+            "trade fallback%s: unparseable answer %.80r",
+            ctx, raw,
+        )
+        return None
+    try:
+        data = json.loads(match.group())
+    except json.JSONDecodeError:
+        log.info(
+            "trade fallback%s: bad JSON %.80r", ctx, raw
+        )
+        return None
+    if not isinstance(data, dict):
+        return None
+    item = data.get('item')
+    if not item or not isinstance(item, str):
+        log.info(
+            "trade fallback%s: no handover in %r / %.60r",
+            ctx, (player_message or '').strip(),
+            reply_text,
+        )
+        return None
+    wanted = item.strip().lower()
+    entry = next(
+        (e for e in inventory
+         if e['name'].lower() == wanted),
+        None,
+    )
+    if entry is None:
+        log.info(
+            "trade fallback%s: %r is not on the "
+            "inventory sheet, ignored", ctx, item,
+        )
+        return None
+    try:
+        count = int(data.get('count') or 1)
+    except (TypeError, ValueError):
+        count = 1
+    count = max(1, min(count, entry['count']))
+    action = f"TRADE|{entry['name']}|{count}"
+    log.info(
+        "trade fallback inferred%s: %s (player %r)",
+        ctx, action, (player_message or '').strip(),
+    )
+    return action
+
+
 def get_bot_facts(extra_data, bot_name=''):
     """Return the bot_facts dict for a bot, or None.
 

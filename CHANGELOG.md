@@ -1,5 +1,23 @@
 # Changelog
 
+### 2026-09-11 - Trade Follow-ups That Stick
+
+* **Marker-less handovers are recovered**: When a bot's reply agrees
+  to give an item ("Cool, there you go") but the model left out the
+  `<<TRADE|Item|count>>` marker, the bridge now asks the quick-analyze
+  model one structured follow-up (which inventory item, how many) and
+  validates the answer against the bot's real inventory sheet before
+  the script executes it. The call only happens when the player's line
+  reads as a confirmation or the reply reads as a handover, and an
+  inventory item was actually discussed. Toggle with
+  `LLMChatter.GroupChatter.TradeIntentFallback` (default on). Tests in
+  `tools/tests/test_trade_intent_fallback.py`.
+* **Quick replies are no longer dropped**:
+  `LLMChatter.GroupChatter.PlayerMsgCooldown` default lowered from 15
+  to 3 seconds. A "yes please" sent 11 seconds after "got any linen?"
+  was silently discarded by the old cooldown, so the offer never
+  turned into a trade.
+
 ### 2026-09-11 - Playerbot Command Relay
 
 * **Speech no longer triggers playerbot commands**: Stock mod-playerbots

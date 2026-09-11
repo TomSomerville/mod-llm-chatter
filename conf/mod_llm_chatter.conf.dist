@@ -1329,9 +1329,23 @@ LLMChatter.GroupChatter.PlayerMsgSecondBotChance = 25
 #   LLMChatter.GroupChatter.PlayerMsgCooldown
 #       Minimum seconds between group reactions to player
 #       chat messages.
-#       Default: 15
+#       Default: 3
 #
-LLMChatter.GroupChatter.PlayerMsgCooldown = 15
+LLMChatter.GroupChatter.PlayerMsgCooldown = 3
+
+#
+#   LLMChatter.GroupChatter.TradeIntentFallback
+#       When a bot's reply agrees to hand an item over but
+#       the model left out the <<TRADE|Item|count>> marker,
+#       ask it one small structured follow-up question
+#       (which inventory item, how many) and execute that.
+#       The answer is validated against the bot's real
+#       inventory. Costs one short extra call only when the
+#       player's line reads as a confirmation or the reply
+#       reads as a handover and items were discussed.
+#       Default: 1 (enabled)
+#
+LLMChatter.GroupChatter.TradeIntentFallback = 1
 
 #
 #   LLMChatter.GroupChatter.GeneralRelayEnable

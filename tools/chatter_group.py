@@ -38,6 +38,9 @@ _spice_count = 2
 from chatter_shared import (
     build_bot_facts_lines,
     extract_trade_action,
+    get_bot_facts,
+    infer_trade_action_via_llm,
+    should_infer_trade_action,
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     get_gender_label,
@@ -1996,6 +1999,21 @@ def process_group_player_msg_event(
             message, player_message=player_message,
             log_context=f"event {event_id}",
         )
+        if trade_action is None:
+            # Reply agreed to a handover but the model
+            # left the marker out: one structured
+            # follow-up question, validated against the
+            # real inventory.
+            facts = get_bot_facts(extra_data, bot_name)
+            if should_infer_trade_action(
+                player_message, message, facts, chat_hist
+            ):
+                trade_action = infer_trade_action_via_llm(
+                    client, config, bot_name, facts,
+                    chat_hist, player_name,
+                    player_message, message,
+                    log_context=f"event {event_id}",
+                )
         message = cleanup_message(
             message, action=parsed.get('action')
         )
